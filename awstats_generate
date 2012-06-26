@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+
+if ARGV.size < 2
+  puts 'awstats_generate host outputdir'
+  exit 1
+end
+
+def run_command page = nil
+  if page
+    eq_page = '=' + page
+    dot_page = '.' + page
+  else
+    update = '-update '
+  end
+  command = [
+    '/usr/lib/cgi-bin/awstats.pl',
+    "-config=#{ARGV[0]}.insidemedia.net",
+    '-staticlinks',
+    update,
+    "-output#{eq_page}", 
+    "> #{File.join(ARGV[1], "awstats.#{ARGV[0]}.insidemedia.net#{dot_page}.html")}"
+  ].join(' ')
+  puts command
+  system command
+end
+
+run_command
+
+%w(
+  alldomains
+  allhosts
+  lasthosts
+  unknownip
+  allemails
+  lastemails
+  allemailr
+  lastemailr
+  alllogins
+  lastlogins
+  allrobots
+  lastrobots
+  urldetail
+  urlentry
+  urlexit
+  osdetail
+  browserdetail
+  unknownbrowser
+  unknownos
+  refererse
+  refererpages
+  keyphrases
+  keywords
+  errors404
+).each do |page|
+  run_command page
+end
