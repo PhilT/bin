@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [[ $1 = "--help" ]]; then
+  echo dr - Dirty Repositories [version 0.1]
+  exit
+fi
+
+echo Repositories in ~/workspace that are not clean:
+for f in `ls ~/workspace`
+do
+  if [ -d ~/workspace/$f/.git ]; then
+    if [[ `cd ~/workspace/$f && git st -s` ]]; then
+     echo $f
+    fi
+  fi
+done
+
