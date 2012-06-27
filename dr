@@ -5,12 +5,16 @@ if [[ $1 = "--help" ]]; then
   exit
 fi
 
+
 echo Repositories in ~/workspace that are not clean:
 for f in `ls ~/workspace`
 do
   if [ -d ~/workspace/$f/.git ]; then
-    if [[ `cd ~/workspace/$f && git st -s` ]]; then
-     echo $f
+    branch=`cd ~/workspace/$f && git symbolic-ref -q HEAD 2>/dev/null | sed 's/refs\/heads\///'`
+    uncommitted=`cd ~/workspace/$f && git st -s`
+    not_pushed=`cd ~/workspace/$f && git diff --name-only origin/$branch`
+    if [[ $uncomitted || $not_pushed ]]; then
+      echo $f
     fi
   fi
 done
