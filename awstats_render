@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby
 
 if ARGV.size < 2
-  puts 'awstats_generate host outputdir'
+  puts 'awstats_render host outputdir'
+  puts 'Renders all pages from awstats generated data.'
   exit 1
 end
 
@@ -9,16 +10,13 @@ def run_command page = nil
   if page
     eq_page = '=' + page
     dot_page = '.' + page
-  else
-    update = '-update '
   end
   command = [
     '/usr/lib/cgi-bin/awstats.pl',
-    "-config=#{ARGV[0]}.insidemedia.net",
+    "-config=#{ARGV[0]}",
     '-staticlinks',
-    update,
     "-output#{eq_page}", 
-    "> #{File.join(ARGV[1], "awstats.#{ARGV[0]}.insidemedia.net#{dot_page}.html")}"
+    "> #{File.join(ARGV[1], "awstats.#{ARGV[0]}#{dot_page}.html")}"
   ].join(' ')
   puts command
   system command
