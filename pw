@@ -87,7 +87,7 @@ function add_password {
 }
 
 function match_command {
-  cat $PASSWORD_FILE | sed -n "s/.*$1.*,\(.*\)$/\1/mp"
+  cat $PASSWORD_FILE | sed -n "s/.*$1.*,\(.*\)/\1/p"
 }
 
 function matched_site {
@@ -104,7 +104,7 @@ function find_password {
   if [ $matches -eq 0 ]; then
     echo No matches.
   elif [ $matches -eq 1 ]; then
-    match_command $1 | xsel -i
+    match_command $1 | tr -d '\n' | xsel -i
     echo Password for $(matched_site $1) copied to clipboard. Login: $(matched_login $1)
   else
     echo Multiple passwords matched. Displaying:
