@@ -7,40 +7,28 @@
 #               Don't re-encrypt file if not changed
 #               Copy retrieved password to clipboard
 #               Improve display of multiple passwords
+# version 0.4 - Add support for Git Bash aka MinGW
 #
 # Add to ~/bin/pw and chmod +x it.
-# See bottom of file for usage.
+# See bottom of file for usage or run `pw` without args.
 
 if [[ -f ~/bin/config ]]; then
   source ~/bin/config
 fi
 
-if [[ -z $PASSWORD_FILE ]]; then
-  echo 'PASSWORD_FILE must be set in ~/bin/config'
+if [[ -z $PASSWORD_FILE || -z $EDIT ]]; then
+  echo 'A ~/bin/config file must exist with the following configuration:'
+  echo 'PASSWORD_FILE=path/to/.password.csv (no gpg extension)'
+  echo 'EDIT=path/to/editor'
+  echo ''
   exit 1
 fi
 
-function cancel_input {
-  stty $stty_orig
-  echo 'Cancelled.'
-  exit
-}
-
-function enter_password {
-  trap cancel_input SIGINT
-  stty_orig=`stty -g`
-  stty -echo
-  read secret
-  stty $stty_orig
-  trap SIGINT
-}
-
 if [[ $# > 0 ]]; then
   echo 'Enter encryption password:'
-  enter_password
+  read -s secret
   OPTIONS=--force-mdc\ --no-tty\ -q\ --no-use-agent\ --yes\ --passphrase=$secret
 fi
-
 
 function encrypt {
   gpg $OPTIONS -c -o $PASSWORD_FILE.gpg $PASSWORD_FILE
@@ -67,7 +55,7 @@ function init_password_csv {
 function edit_password_csv {
   decrypt
   backup_decrypted_file
-  nano $PASSWORD_FILE
+  $EDIT $PASSWORD_FILE
   if diff $PASSWORD_FILE $PASSWORD_FILE.bak > /dev/null; then
     cleanup
     echo 'No changes made.'
@@ -77,13 +65,22 @@ function edit_password_csv {
 }
 
 function add_password {
-  tr -dc A-Za-z0-9_ < /dev/urandom | head -c8 | xsel -i
-  pass=`xsel`
+  pass=`tr -dc A-Za-z0-9_ < /dev/urandom | head -c8`
+
+  copy_password
   echo Password copied to clipboard.
 
   decrypt
   echo $1,$2,$pass >> $PASSWORD_FILE
   encrypt
+}
+
+function copy_password {
+  if [[ $TERM == 'cygwin' ]]; then
+    echo $pass > /dev/clipboard
+  else
+    echo $pass | xsel -i
+  fi
 }
 
 function match_command {
@@ -104,7 +101,8 @@ function find_password {
   if [ $matches -eq 0 ]; then
     echo No matches.
   elif [ $matches -eq 1 ]; then
-    match_command $1 | tr -d '\n' | xsel -i
+    pass=`match_command $1 | tr -d '\n'`
+    copy_password
     echo Password for $(matched_site $1) copied to clipboard. Login: $(matched_login $1)
   else
     echo Multiple passwords matched. Displaying:
