@@ -12,13 +12,17 @@
 # Add to ~/bin/pw and chmod +x it.
 # See bottom of file for usage or run `pw` without args.
 
-if [[ -f ~/bin/config ]]; then
-  source ~/bin/config
+if [[ -f ~/.pwconfig ]]; then
+  source ~/.pwconfig
 fi
 
-if [[ -z $PASSWORD_FILE || -z $EDIT ]]; then
-  echo 'A ~/bin/config file must exist with the following configuration:'
-  echo 'PASSWORD_FILE=path/to/.password.csv (no gpg extension)'
+PASSWORD_GPG=$PASSWORD_DIR/$PASSWORD_FILE.gpg
+PASSWORD_TEMP=$TEMP/$PASSWORD_FILE
+
+if [[ -z $PASSWORD_DIR || -z $PASSWORD_FILE || -z $EDIT ]]; then
+  echo 'A ~/.pwconfig file must exist with the following configuration:'
+  echo 'PASSWORD_DIR=password/dir'
+  echo 'PASSWORD_FILE=.password.csv (no gpg extension)'
   echo 'EDIT=path/to/editor'
   echo ''
   exit 1
@@ -27,25 +31,25 @@ fi
 if [[ $# > 0 ]]; then
   echo 'Enter encryption password:'
   read -s secret
-  OPTIONS=--force-mdc\ --no-tty\ -q\ --no-use-agent\ --yes\ --passphrase=$secret
+  OPTIONS=--no-permission-warning\ --no-secmem-warning\ --force-mdc\ --no-tty\ -q\ --no-use-agent\ --yes\ --passphrase=$secret\ --homedir\ ~/.gnupg
 fi
 
 function encrypt {
-  gpg $OPTIONS -c -o $PASSWORD_FILE.gpg $PASSWORD_FILE
+  gpg $OPTIONS -c -o $PASSWORD_GPG $PASSWORD_TEMP
   cleanup
   echo 'Password file updated.'
 }
 
 function decrypt {
-  gpg $OPTIONS -o $PASSWORD_FILE $PASSWORD_FILE.gpg
+  gpg $OPTIONS -o $PASSWORD_TEMP $PASSWORD_GPG
 }
 
 function backup_decrypted_file {
-  cp $PASSWORD_FILE $PASSWORD_FILE.bak
+  cp $PASSWORD_TEMP $PASSWORD_TEMP.bak
 }
 
 function cleanup {
-  rm -f $PASSWORD_FILE $PASSWORD_FILE.bak
+  rm -f $PASSWORD_TEMP $PASSWORD_TEMP.bak
 }
 
 function init_password_csv {
@@ -55,8 +59,8 @@ function init_password_csv {
 function edit_password_csv {
   decrypt
   backup_decrypted_file
-  $EDIT $PASSWORD_FILE
-  if diff $PASSWORD_FILE $PASSWORD_FILE.bak > /dev/null; then
+  $EDIT $PASSWORD_TEMP
+  if diff $PASSWORD_TEMP $PASSWORD_TEMP.bak > /dev/null; then
     cleanup
     echo 'No changes made.'
   else
@@ -84,15 +88,15 @@ function copy_password {
 }
 
 function match_command {
-  cat $PASSWORD_FILE | sed -n "s/.*$1.*,\(.*\)/\1/p"
+  cat $PASSWORD_TEMP | sed -n "s/.*$1.*,\(.*\)/\1/p"
 }
 
 function matched_site {
-  cat $PASSWORD_FILE | sed -n "s/\(.*$1.*\),.*,.*/\1/p"
+  cat $PASSWORD_TEMP | sed -n "s/\(.*$1.*\),.*,.*/\1/p"
 }
 
 function matched_login {
-  cat $PASSWORD_FILE | sed -n "s/.*$1.*,\(.*\),.*/\1/p"
+  cat $PASSWORD_TEMP | sed -n "s/.*$1.*,\(.*\),.*/\1/p"
 }
 
 function find_password {
@@ -106,9 +110,9 @@ function find_password {
     echo Password for $(matched_site $1) copied to clipboard. Login: $(matched_login $1)
   else
     echo Multiple passwords matched. Displaying:
-    cat $PASSWORD_FILE | grep $1
+    cat $PASSWORD_TEMP | grep $1
   fi
-  rm -f $PASSWORD_FILE
+  rm -f $PASSWORD_TEMP
 }
 
 if [ $# == 2 ]; then
