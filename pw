@@ -8,6 +8,10 @@
 #               Copy retrieved password to clipboard
 #               Improve display of multiple passwords
 # version 0.4 - Add support for Git Bash aka MinGW
+# version 0.5 - Add support for OSX
+#               Overwrite existing passwords (--force)
+#               15 character passwords including symbols
+#               Optional safe characters (--safe)
 #
 # Add to ~/bin/pw and chmod +x it.
 # See bottom of file for usage or run `pw` without args.
@@ -17,14 +21,24 @@ if [[ -f ~/.pwconfig ]]; then
 fi
 
 PASSWORD_GPG=$PASSWORD_DIR/$PASSWORD_FILE.gpg
-PASSWORD_TEMP=$TEMP/$PASSWORD_FILE
+PASSWORD_TEMP=/tmp/$PASSWORD_FILE
 
 if [[ -z $PASSWORD_DIR || -z $PASSWORD_FILE || -z $EDIT ]]; then
   echo 'A ~/.pwconfig file must exist with the following configuration:'
-  echo 'PASSWORD_DIR=password/dir'
+  echo 'PASSWORD_DIR=password/dir (no trailing slash)'
   echo 'PASSWORD_FILE=.password.csv (no gpg extension)'
   echo 'EDIT=path/to/editor'
   echo ''
+  exit 1
+fi
+
+if [[ ! -d $PASSWORD_DIR ]]; then
+  echo $PASSWORD_DIR does not exist. Check ~/.pwconfig
+  exit 1
+fi
+
+if [[ ! -f $PASSWORD_GPG ]]; then
+  echo $PASSWORD_GPG does not exist. Check ~/.pwconfig
   exit 1
 fi
 
@@ -69,21 +83,38 @@ function edit_password_csv {
 }
 
 function add_password {
-  pass=`tr -dc A-Za-z0-9_ < /dev/urandom | head -c8`
-
-  copy_password
-  echo Password copied to clipboard.
-
   decrypt
-  echo $1,$2,$pass >> $PASSWORD_FILE
-  encrypt
+  site_matched=`cat $PASSWORD_TEMP | grep -q "$1,.*,.*"`
+  if [[ $site_matched == 0 || $FORCE ]]; then
+    pass=`LC_ALL=C tr -dc $PASSWORD_CHARS < /dev/urandom | head -c15`
+
+    copy_password
+    echo Password copied to clipboard.
+
+    if [[ $site_matched == 0 ]]; then
+      echo $1,$2,$pass >> $PASSWORD_TEMP
+    else
+      if [[ `uname` == 'Darwin' ]]; then
+        INLINE="-i ''"
+      else
+        INLINE="-i"
+      fi
+      sed $INLINE "s/$1,.*,.*/$1,$2,$pass/" $PASSWORD_TEMP
+    fi
+    encrypt
+  else
+    cleanup
+    echo Password for $1 already exists. Use --force to overwrite
+  fi
 }
 
 function copy_password {
   if [[ $TERM == 'cygwin' ]]; then
-    echo $pass > /dev/clipboard
+    echo -n $pass > /dev/clipboard
+  elif which pbcopy > /dev/null 2>&1; then
+    echo -n $pass | pbcopy
   else
-    echo $pass | xsel -i
+    echo -n $pass | xsel -i
   fi
 }
 
@@ -115,6 +146,19 @@ function find_password {
   rm -f $PASSWORD_TEMP
 }
 
+if [ $1 == '--safe' ]; then
+  shift
+  PASSWORD_CHARS='A-Za-z0-9'
+  echo Using safe password characters
+else
+  PASSWORD_CHARS='A-Za-z0-9_!@#$%^&*()\-+='
+fi
+
+if [ $1 == '--force' ]; then
+  FORCE=true
+  shift
+fi
+
 if [ $# == 2 ]; then
   add_password $1 $2
 elif [ $# == 1 ]; then
@@ -128,14 +172,16 @@ elif [ $# == 1 ]; then
 else
   echo 'Usage (1): pw --init          Encrypts a prepared .passwords.csv file'
   echo 'Usage (2): pw --edit          Edit the .passwords.csv file'
-  echo 'Usage (3): pw TERM            find a password'
-  echo 'Usage (4): pw URL/NAME LOGIN  add a password (generated and copied to clipboard)'
+  echo 'Usage (3): pw TERM            find a password containing TERM'
+  echo 'Usage (4): pw [--safe] [--force] URL/NAME LOGIN  add a password (generated and copied to clipboard)'
   echo 'Add or view a password from a GPG encrypted password file.'
+  echo 'Parameters are in strict order (until getopts is used)'
   echo
+  echo '--safe        Use upper and lower alphanumeric characters only (no symbols)'
+  echo '--force       Overwrite existing password with new one'
   echo 'TERM          Enter a partial site name or URL'
   echo 'URL/NAME      A name or URL of a site'
   echo 'LOGIN         Email address or username used to login'
   echo
   exit
 fi
-
