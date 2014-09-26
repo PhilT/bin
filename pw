@@ -12,6 +12,7 @@
 #               Overwrite existing passwords (--force)
 #               15 character passwords including symbols
 #               Optional safe characters (--safe)
+# version 0.6 - Silence some verbose commands
 #
 # Add to ~/bin/pw and chmod +x it.
 # See bottom of file for usage or run `pw` without args.
@@ -19,9 +20,6 @@
 if [[ -f ~/.pwconfig ]]; then
   source ~/.pwconfig
 fi
-
-PASSWORD_GPG=$PASSWORD_DIR/$PASSWORD_FILE.gpg
-PASSWORD_TEMP=/tmp/$PASSWORD_FILE
 
 if [[ -z $PASSWORD_DIR || -z $PASSWORD_FILE || -z $EDIT ]]; then
   echo 'A ~/.pwconfig file must exist with the following configuration:'
@@ -31,6 +29,9 @@ if [[ -z $PASSWORD_DIR || -z $PASSWORD_FILE || -z $EDIT ]]; then
   echo ''
   exit 1
 fi
+
+PASSWORD_GPG=$PASSWORD_DIR/$PASSWORD_FILE.gpg
+PASSWORD_TEMP=/tmp/$PASSWORD_FILE
 
 if [[ ! -d $PASSWORD_DIR ]]; then
   echo $PASSWORD_DIR does not exist. Check ~/.pwconfig
@@ -59,11 +60,11 @@ function decrypt {
 }
 
 function backup_decrypted_file {
-  cp $PASSWORD_TEMP $PASSWORD_TEMP.bak
+  cp $PASSWORD_TEMP $PASSWORD_TEMP.bak > /dev/null 2>&1
 }
 
 function cleanup {
-  rm -f $PASSWORD_TEMP $PASSWORD_TEMP.bak
+  rm -f $PASSWORD_TEMP $PASSWORD_TEMP.bak > /dev/null 2>&1
 }
 
 function init_password_csv {
@@ -74,7 +75,7 @@ function edit_password_csv {
   decrypt
   backup_decrypted_file
   $EDIT $PASSWORD_TEMP
-  if diff $PASSWORD_TEMP $PASSWORD_TEMP.bak > /dev/null; then
+  if diff $PASSWORD_TEMP $PASSWORD_TEMP.bak > /dev/null 2>&1; then
     cleanup
     echo 'No changes made.'
   else
