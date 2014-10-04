@@ -1,18 +1,29 @@
 #!/bin/bash
 
-# https://gist.github.com/2371406
-# version 0.1 - Not much error handling yet.
-# version 0.2 - Added --edit command
-# version 0.3 - generate password and copy to clipboard
-#               Don't re-encrypt file if not changed
-#               Copy retrieved password to clipboard
-#               Improve display of multiple passwords
-# version 0.4 - Add support for Git Bash aka MinGW
+# pw
+#
+# Commandline bash script for storing and retreiving passwords
+# encrypted using PGP. Store website, username/email and password.
+# Places password into clipboard for easy pasting into website or app.
+#
+# Works on Linux, Windows and Mac.
+#
+# Find pw and other useful scripts at https://github.com/PhilT/bin
+#
+# version 0.7 - Fixed incorrect use of extended bash if
+#               Added description
+# version 0.6 - Silence some verbose commands
 # version 0.5 - Add support for OSX
 #               Overwrite existing passwords (--force)
 #               15 character passwords including symbols
 #               Optional safe characters (--safe)
-# version 0.6 - Silence some verbose commands
+# version 0.4 - Add support for Git Bash aka MinGW
+# version 0.3 - generate password and copy to clipboard
+#               Don't re-encrypt file if not changed
+#               Copy retrieved password to clipboard
+#               Improve display of multiple passwords
+# version 0.2 - Added --edit command
+# version 0.1 - Not much error handling yet.
 #
 # Add to ~/bin/pw and chmod +x it.
 # See bottom of file for usage or run `pw` without args.
@@ -147,7 +158,7 @@ function find_password {
   rm -f $PASSWORD_TEMP
 }
 
-if [ $1 == '--safe' ]; then
+if [[ $1 == '--safe' ]]; then
   shift
   PASSWORD_CHARS='A-Za-z0-9'
   echo Using safe password characters
@@ -155,7 +166,7 @@ else
   PASSWORD_CHARS='A-Za-z0-9_!@#$%^&*()\-+='
 fi
 
-if [ $1 == '--force' ]; then
+if [[ $1 == '--force' ]]; then
   FORCE=true
   shift
 fi
