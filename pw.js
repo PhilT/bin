@@ -43,11 +43,11 @@ var argv = require('optimist').boolean(['init', 'edit', 'safe', 'force']).argv,
 
 function cleanup() {
   fs.unlinkSync(paths.temp);
-  fs.unlinkSync(paths.temp_bak);
+  fs.unlinkSync(paths.tempBak);
 }
 
 function execSync(command) {
-  exec(command, function(error, stdout, stderr) {
+  exec(command, function (error, stdout, stderr) {
     if (error !== null) {
       console.log("Error %d running '%s'.", error.code, command);
       console.log(stderr);
@@ -69,7 +69,7 @@ function decrypt() {
 }
 
 function backupDecruptedFile() {
-  fs.createReadStream(paths.temp).pipe(fs.createWriteStream(paths.temp_bak));
+  fs.createReadStream(paths.temp).pipe(fs.createWriteStream(paths.tempBak));
 }
 
 function initPasswordCsv() {
@@ -79,14 +79,14 @@ function initPasswordCsv() {
 function editPasswordCsv() {
   decrypt();
   backupDecruptedFile();
-  exec(util.format("%s %s", config.editor, paths.temp), function(error) {
+  exec(util.format("%s %s", config.editor, paths.temp), function (error) {
     if (error !== null) {
-      exec(util.format("diff %s %s", paths.temp, paths.temp_bak), function(error) {
+      exec(util.format("diff %s %s", paths.temp, paths.tempBak), function (error) {
         if (error !== null) {
           if (error.code === 1) {
             encrypt();
           } else {
-            console.log(util.format("Error diffing %s with %s", paths.temp, paths.temp_bak));
+            console.log(util.format("Error diffing %s with %s", paths.temp, paths.tempBak));
             cleanup();
             process.exit(1);
           }
@@ -109,68 +109,67 @@ function generatePassword() {
   return password;
 }
 
-function copyPassword() {
-  if ( $TERM == 'cygwin' ) {
-    console.log('-n $pass > /dev/clipboard');
-  elif which pbcopy > /dev/null 2>&1 {
-    console.log('-n $pass | pbcopy');
-  else
-    console.log('-n $pass | xsel -i');
+function copyPassword(password) {
+  if (os.platform() === 'win32') {
+    exec('echo ' + password + ' | clip');
+  } else if (os.platform() === 'darwin') {
+    exec('echo -n ' + password + ' | pbcopy');
+  } else {
+    exec('echo -n ' + password + ' | xsel -i');
   }
 }
 
-function addPassword(site) {
-  var passwords, password;
+function loadPasswords() {
+  return fs.readFileSync(paths.temp, {encoding: 'UTF-8'});
+}
+
+function addPassword(site, login) {
+  var siteMatched,
+      passwords,
+      password,
+      newPassword;
   decrypt();
-  passwords = fs.readFileSync(paths.temp, {encoding: 'UTF-8'});
-  if (passwords.indexOf(site) === -1 || argv.force) {
+  passwords = loadPasswords();
+  siteMatched = passwords.indexOf(site) !== -1;
+  newPassword = [site, login, password + "\n"].join(',');
+
+  if (!siteMatched || argv.force) {
     password = generatePassword();
     copyPassword(password);
     console.log('Password copied to clipboard.');
 
-    if ( $site_matched == 0 ) {
-      console.log('$1,$2,$pass >> paths.temp');
-    else
-      if ( `uname` == 'Darwin' ) {
-        INLINE="-i ''"
-      else
-        INLINE="-i"
-      }
-      sed $INLINE "s/$1,.*,.*/$1,$2,$password/" paths.temp
+    if (!siteMatched) {
+      if (passwords[length.passwords - 1] !== "\n") { passwords += "\n"; }
+      passwords += newPassword;
+    } else {
+      passwords.replace(new RegExp(site + ",.*,.*\n"), newPassword);
     }
-    encrypt
-  else
-    cleanup
-    console.log('Password for $1 already exists. Use --force to overwrite');
+    encrypt();
+  } else {
+    cleanup();
+    console.log('Password for %s already exists. Use --force to overwrite', site);
   }
 }
 
-function matchCommand() {
-  cat paths.temp | sed -n "s/.*$1.*,\(.*\)/\1/p"
-}
-
-function matchedSite() {
-  cat paths.temp | sed -n "s/\(.*$1.*\),.*,.*/\1/p"
-}
-
-function matchedLogin() {
-  cat paths.temp | sed -n "s/.*$1.*,\(.*\),.*/\1/p"
-}
-
-function findPassword() {
+function findPassword(site) {
+  var regexp = new RegExp(".*" + site + ".*\n", 'g'),
+      passwords,
+      matches,
+      parts;
   decrypt();
-  matches=`matchCommand $1 | wc -l`
-  if [ $matches -eq 0 ] {
+  passwords = loadPasswords();
+  matches = passwords.match(regexp);
+  if (matches.length === 0) {
     console.log('No matches.');
-  elif [ $matches -eq 1 ] {
-    pass=`matchCommand $1 | tr -d '\n'`
-    copyPassword();
-    console.log('Password for $(matchedSite $1) copied to clipboard. Login: $(matchedLogin $1)');
-  else
+  } else if (matches === 1) {
+    parts = matches[0].split(',').replace("\n", '');
+    copyPassword(parts[2]);
+    console.log('Password for %s copied to clipboard. Login: %s', parts[0], parts[1]);
+  } else {
     console.log('Multiple passwords matched. Displaying:');
-    cat paths.temp | grep $1
+    console.log(matches.join(''));
   }
-  rm -f paths.temp
+  cleanup();
 }
 
 paths.home = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE);
@@ -191,7 +190,7 @@ if (!paths.dir || !paths.file || !config.editor) {
 config.passwordLength = 15;
 paths.gpg = path.join(config.dir, paths.file) + '.gpg';
 paths.temp = path.join(os.tmpdir(), paths.file);
-paths.temp_bak = paths.temp + '.bak';
+paths.tempBak = paths.temp + '.bak';
 
 if (!fs.existsSync(config.dir)) {
   console.log(config.dir + ' does not exist. Check ' + paths.config);
@@ -209,7 +208,7 @@ rli = readline.createInterface({
 });
 
 if (argv.size > 0) {
-  rli.question('Enter encryption password:', function(answer) {
+  rli.question('Enter encryption password:', function (answer) {
     rli.close();
     config.options = [
       '--no-permission-warning',
@@ -220,7 +219,7 @@ if (argv.size > 0) {
       '--no-use-agent',
       '--yes',
       '--passphrase=' + answer,
-      '--homedir ' + path.join(homePath, '.gnupg')
+      '--homedir ' + path.join(path.home, '.gnupg')
     ];
   });
 }
@@ -230,12 +229,12 @@ config.chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 if (argv.safe) {
   console.log('Using safe password characters');
 } else {
-  config.chars += '_!@#$%^&*()\\-+=';
+  config.chars += '_!@#$%^*()\\-+=';
 }
 
-if (argv._.length == 2)  {
+if (argv._.length === 2)  {
   addPassword(argv._[0], argv._[1]);
-} else if (argv._.length == 1) {
+} else if (argv._.length === 1) {
   findPassword(argv._[0]);
 } else {
   if (argv.init) {
@@ -243,14 +242,15 @@ if (argv._.length == 2)  {
   } else if (argv.edit) {
     editPasswordCsv();
   } else {
-    console.log('Usage (1): pw --init          Encrypts a prepared .passwords.csv file');
-    console.log('Usage (2): pw --edit          Edit the .passwords.csv file');
-    console.log('Usage (3): pw TERM            find a password containing TERM');
-    console.log('Usage (4): pw [--safe] [--force] URL/NAME LOGIN  add a password (generated and copied to clipboard)');
+    console.log('pw --init          Encrypts a prepared .passwords.csv file');
+    console.log('pw --edit          Edit the .passwords.csv file');
+    console.log('pw TERM            find a password containing TERM');
+    console.log('pw [options] URL/NAME LOGIN  generate password (copied to clipboard)');
     console.log('Add or view a password from a GPG encrypted password file.');
     console.log('');
-    console.log('--safe        Use upper and lower alphanumeric characters only (no symbols)');
-    console.log('--force       Overwrite existing password with new one');
+    console.log('options:');
+    console.log('   --safe     Use upper and lower alphanumeric characters only (no symbols)');
+    console.log('   --force    Overwrite existing password with new one');
     console.log('TERM          Enter a partial site name or URL');
     console.log('URL/NAME      A name or URL of a site');
     console.log('LOGIN         Email address or username used to login');
