@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// pw
+// pw.js
 //
 // Script for storing and retreiving account credentials encrypted using PGP.
 // Store website, username/email and password.
@@ -121,8 +121,10 @@ commands.query = function query(passwords, params) {
   return passwords;
 };
 
-commands.remove = function remove(passwords, params, pwconfig) {
-  var newPasswords = passwords.slice();
+commands.remove = function remove(passwords, params) {
+  var site = params[0],
+      newPasswords = passwords.slice();
+
   return newPasswords;
 };
 
@@ -222,9 +224,10 @@ parseArgs = function parseArgs() {
   var args = process.argv.slice(2),
       command = args.shift(),
       commands = ['delete', 'generate', 'list', 'query'],
-      index = commands.indexOf(command);
+      index;
 
   commands = commands.concat(commands.map(function (command) { return command[0]; }));
+  index = commands.indexOf(command);
 
   if (index === -1) {
     usage();
