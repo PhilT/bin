@@ -35,7 +35,7 @@
 
 var path = require('path'),
     spawn = require('child_process').spawn,
-      fs = require('fs'),
+    fs = require('fs'),
     safe = false,
     params = [],
     force = false,
@@ -55,11 +55,11 @@ var path = require('path'),
     parseArgs,
     puts,
     savePasswordFile,
+    sortPasswords,
     start,
     usage,
     wantToExit;
 
-process.stdin.resume();
 process.on('SIGINT', function () {
   process.exit(0);
 });
@@ -71,13 +71,18 @@ attemptExit = function attemptExit() {
   }
 };
 
-commands.generate = function generate(passwords, params, pwconfig) {
+commands.add = function add(passwords, params, pwconfig, password) {
+  return generate(passwords, params, pwconfig, password);
+};
+
+commands.generate = function generate(passwords, params, pwconfig, password) {
   var url = params[0],
       login = params[1],
       siteMatched = passwords.indexOf(url) !== -1,
-      password = generatePassword(pwconfig.passwordLength),
       line = [url, login, password + "\n"].join(','),
       newPasswords;
+
+  password = password || generatePassword(pwconfig.passwordLength);
 
   if (!siteMatched) {
     if (passwords[length.passwords - 1] !== "\n") { passwords += "\n"; }
@@ -94,7 +99,11 @@ commands.generate = function generate(passwords, params, pwconfig) {
 };
 
 commands.list = function list(passwords) {
-  puts(passwords);
+  passwords.split("\n").forEach(function (password) {
+    if (password.split(',').length > 3) {
+      puts(password);
+    }
+  })
   return passwords;
 };
 
@@ -146,7 +155,7 @@ copyPassword = function copyPassword(url, login, password) {
   });
 };
 
-var enterPassword = function enterPassword(callback) {
+enterPassword = function enterPassword(callback) {
   var password = '',
       stdin = process.stdin;
 
@@ -165,7 +174,6 @@ var enterPassword = function enterPassword(callback) {
       password += ch;
     }
   });
-  puts('Enter encryption password:');
 };
 
 generatePassword = function generatePassword(length) {
@@ -201,16 +209,11 @@ gpg = function gpg(password, encrypt, input, callback) {
     options.push('--decrypt');
   }
   child = spawn('gpg', options);
-  child.stdin.on('close', function () {
+  child.on('close', function () {
     callback(passwords);
   });
   child.stdout.on('data', function (data) {
-    console.log('Incoming...');
     passwords += data.toString('utf8');
-  });
-  child.stderr.on('data', function (data) {
-    puts('Error: ' + data);
-    process.exit(1);
   });
   child.stdin.end(input);
 };
@@ -253,7 +256,7 @@ loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
 parseArgs = function parseArgs() {
   var args = process.argv.slice(2),
       command = args.shift(),
-      commands = ['delete', 'generate', 'list', 'query'],
+      commands = ['add', 'delete', 'generate', 'list', 'query'],
       index;
 
   commands = commands.concat(commands.map(function (command) { return command[0]; }));
@@ -296,24 +299,52 @@ savePasswordFile = function savePasswordFile(filepath, password, passwords) {
   });
 };
 
-start = function start() {
-  var command = parseArgs(),
-      pwconfigPath = path.join(homePath, '.pwconfig.json'),
+sortPasswords = function sortPasswords(passwords) {
+  var dropPrefixes = /^(https?:\/\/)?(www.)?/;
+
+  return passwords.split("\n").sort(function (a, b) {
+    a = a.replace(dropPrefixes, '');
+    b = b.replace(dropPrefixes, '');
+    if (a > b) { return 1; }
+    if (a < b) { return -1; }
+    return 0;
+  }).join("\n");
+};
+
+processCommand = function processCommand(command, passwordToAdd) {
+  var pwconfigPath = path.join(homePath, '.pwconfig.json'),
       pwconfig = loadConfig(pwconfigPath),
       passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg';
 
-  var password = '';
-  // enterPassword(function (password) {
-    loadPasswordFile(passwordFile, password, function (passwords) {
-      var newPasswords = commands[command](passwords, params, pwconfig);
-      if (newPasswords !== passwords) {
-        savePasswordFile(passwordFile, password, passwords);
-      } else {
-        puts('No changes made.');
-      }
-      process.exit();
-    });
-  // });
+  loadPasswordFile(passwordFile, password, function (passwords) {
+    var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
+    if (newPasswords !== passwords) {
+      savePasswordFile(passwordFile, password, passwords);
+    } else {
+      puts('No changes made.');
+    }
+    process.exit();
+  });
+};
+
+start = function start() {
+  var command = parseArgs(),
+
+  enterPassword(function (password) {
+    if (command === 'add') {
+      enterPassword(function (password) {
+        enterPassword(function (password_confirmation) {
+          processCommand(command, passwordToAdd);
+        });
+        puts('Again to confirm:');
+      });
+      puts('Enter password to add:');
+
+    } else {
+      processCommand(command);
+    }
+  });
+  puts('Enter encryption password:');
 };
 
 usage = function usage() {
@@ -324,6 +355,7 @@ usage = function usage() {
     '',
     ' command:',
     '   g, generate url login   creates a new password',
+    '   a, add url login        adds a password generated elsewhere'
     '   l, list                 displays all passwords',
     '   q, query term           finds a password',
     '   r, remove site          removes a password, site and login',
