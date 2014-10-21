@@ -34,12 +34,8 @@
 //
 
 var path = require('path'),
-    exec = require('child_process').exec,
-    fs = require('fs'),
-    readline = require('readline').createInterface({
-      input: process.stdin,
-      output: process.stdout
-    }),
+    spawn = require('child_process').spawn,
+      fs = require('fs'),
     safe = false,
     params = [],
     force = false,
@@ -130,7 +126,8 @@ commands.remove = function remove(passwords, params) {
 
 copyPassword = function copyPassword(url, login, password) {
   var noNewline = '-n ',
-      command;
+      command,
+      child;
 
   if (os.platform() === 'win32') {
     noNewline = '|set /p=';
@@ -142,17 +139,33 @@ copyPassword = function copyPassword(url, login, password) {
   }
 
   wantToExit();
-  exec(util.format("echo %s%s|%s", noNewline, password, command), function () {
+  child = spawn(util.format("echo %s%s|%s", noNewline, password, command));
+  child.on('exit', function () {
     puts('Password for %s copied to clipboard. Login: %s', url, login);
     attemptExit();
   });
 };
 
-enterPassword = function enterPassword(callback) {
-  readline.question('Enter encryption password:', function (answer) {
-    readline.close();
-    callback(answer);
+var enterPassword = function enterPassword(callback) {
+  var password = '',
+      stdin = process.stdin;
+
+  stdin.setEncoding('utf8');
+  stdin.setRawMode(true);
+  stdin.on('readable', function () {
+    var ch = stdin.read();
+    if (ch === "\r") {
+      stdin.setRawMode(false);
+      stdin.setEncoding();
+      callback(password);
+    } else if (ch === "\u0003") {
+      puts();
+      process.exit();
+    } else if (ch !== null) {
+      password += ch;
+    }
   });
+  puts('Enter encryption password:');
 };
 
 generatePassword = function generatePassword(length) {
@@ -168,31 +181,45 @@ generatePassword = function generatePassword(length) {
 
 gpg = function gpg(password, encrypt, input, callback) {
   var options = [
-      '--symetric',
-      '--no-permission-warning',
-      '--no-secmem-warning',
-      '--force-mdc',
-      '--no-tty',
-      '-q',
-      '--no-use-agent',
-      '--yes',
-      '--passphrase=' + password,
-      '--homedir ' + path.join(homePath, '.gnupg')
-    ],
-    child;
+        '--no-permission-warning',
+        '--no-secmem-warning',
+        '--force-mdc',
+        '--no-tty',
+        '-q',
+        '--no-use-agent',
+        '--yes',
+        '--passphrase=' + password,
+        '--homedir',
+        path.join(homePath, '.gnupg')
+      ],
+      child,
+      passwords = '';
 
-  if (encrypt) { options.push('--encrypt'); }
-  child = exec('gpg', options, callback);
-  child.stdin.write(input, function () {
-    child.stdin.end();
+  if (encrypt) {
+    options.push('--symetric').push('--encrypt');
+  } else {
+    options.push('--decrypt');
+  }
+  child = spawn('gpg', options);
+  child.stdin.on('close', function () {
+    callback(passwords);
   });
+  child.stdout.on('data', function (data) {
+    console.log('Incoming...');
+    passwords += data.toString('utf8');
+  });
+  child.stderr.on('data', function (data) {
+    puts('Error: ' + data);
+    process.exit(1);
+  });
+  child.stdin.end(input);
 };
 
 loadConfig = function loadConfig(pathname) {
   var config = loadJson(pathname);
   config.passwordLength = config.passwordLength || 15;
 
-  if (!config.dir || !config.file || !config.editor) {
+  if (!config.dir || !config.file) {
     puts(pathname + ' must exist with, for example:');
     puts('{"dir": "path/to/password/file", "file": ".password.csv"}');
     process.exit(1);
@@ -200,22 +227,25 @@ loadConfig = function loadConfig(pathname) {
   return config;
 };
 
-loadFile = function loadFile(pathname) {
-  var contents = null;
+loadFile = function loadFile(pathname, encoding) {
+  var contents;
   try {
-    contents = fs.readFileSync(pathname, 'utf8');
-  } catch (e) {}
+    contents = fs.readFileSync(pathname, encoding);
+  } catch (e) {
+    puts('Could not load file: ' + pathname);
+    process.exit(1);
+  }
   return contents;
 };
 
 loadJson = function loadJson(pathname) {
-  return JSON.parse(loadFile(pathname)) || {};
+  return JSON.parse(loadFile(pathname, 'utf8')) || {};
 };
 
 loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
   var encryptedPasswords = loadFile(pathname);
   if (!encryptedPasswords) { return callback(''); }
-  gpg(password, false, encryptedPasswords, function (passwords) {
+  gpg(password, false, fs.readFileSync(pathname), function (passwords) {
     callback(passwords);
   });
 };
@@ -272,7 +302,8 @@ start = function start() {
       pwconfig = loadConfig(pwconfigPath),
       passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg';
 
-  enterPassword(function (password) {
+  var password = '';
+  // enterPassword(function (password) {
     loadPasswordFile(passwordFile, password, function (passwords) {
       var newPasswords = commands[command](passwords, params, pwconfig);
       if (newPasswords !== passwords) {
@@ -280,8 +311,9 @@ start = function start() {
       } else {
         puts('No changes made.');
       }
+      process.exit();
     });
-  });
+  // });
 };
 
 usage = function usage() {
