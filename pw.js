@@ -53,6 +53,7 @@ var path = require('path'),
     loadJson,
     loadPasswordFile,
     parseArgs,
+    processCommand,
     puts,
     savePasswordFile,
     sortPasswords,
@@ -72,7 +73,7 @@ attemptExit = function attemptExit() {
 };
 
 commands.add = function add(passwords, params, pwconfig, password) {
-  return generate(passwords, params, pwconfig, password);
+  return this.generate(passwords, params, pwconfig, password);
 };
 
 commands.generate = function generate(passwords, params, pwconfig, password) {
@@ -103,13 +104,13 @@ commands.list = function list(passwords) {
     if (password.split(',').length > 3) {
       puts(password);
     }
-  })
+  });
   return passwords;
 };
 
 commands.query = function query(passwords, params) {
   var term = params[0],
-      regexp = new RegExp(".*" + term + ".*\n", 'g'),
+      regexp = new RegExp(util.format(".*%s.*\n", term), 'g'),
       matches,
       parts;
   matches = passwords.match(regexp);
@@ -127,8 +128,11 @@ commands.query = function query(passwords, params) {
 };
 
 commands.remove = function remove(passwords, params) {
-  var site = params[0],
-      newPasswords = passwords.slice();
+  var url = params[0],
+      regexp = new RegExp(url + ",.*\n"),
+      newPasswords;
+
+  newPasswords = passwords.replace(regexp, '');
 
   return newPasswords;
 };
@@ -256,7 +260,7 @@ loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
 parseArgs = function parseArgs() {
   var args = process.argv.slice(2),
       command = args.shift(),
-      commands = ['add', 'delete', 'generate', 'list', 'query'],
+      commands = ['add', 'remove', 'generate', 'list', 'query'],
       index;
 
   commands = commands.concat(commands.map(function (command) { return command[0]; }));
@@ -283,7 +287,21 @@ parseArgs = function parseArgs() {
     passwordChars += '_!@#$%^*()\\-+=';
   }
 
-  return commands[index % 4];
+  return commands[index % (commands.length / 2)];
+};
+
+processCommand = function processCommand(command, password, passwordToAdd) {
+  var pwconfigPath = path.join(homePath, '.pwconfig.json'),
+      pwconfig = loadConfig(pwconfigPath),
+      passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg';
+
+  loadPasswordFile(passwordFile, password, function (passwords) {
+    var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
+    if (newPasswords !== passwords) {
+      savePasswordFile(passwordFile, password, passwords);
+    }
+    process.exit();
+  });
 };
 
 puts = function puts() {
@@ -311,37 +329,24 @@ sortPasswords = function sortPasswords(passwords) {
   }).join("\n");
 };
 
-processCommand = function processCommand(command, passwordToAdd) {
-  var pwconfigPath = path.join(homePath, '.pwconfig.json'),
-      pwconfig = loadConfig(pwconfigPath),
-      passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg';
-
-  loadPasswordFile(passwordFile, password, function (passwords) {
-    var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
-    if (newPasswords !== passwords) {
-      savePasswordFile(passwordFile, password, passwords);
-    } else {
-      puts('No changes made.');
-    }
-    process.exit();
-  });
-};
-
 start = function start() {
-  var command = parseArgs(),
+  var command = parseArgs();
 
   enterPassword(function (password) {
     if (command === 'add') {
-      enterPassword(function (password) {
-        enterPassword(function (password_confirmation) {
-          processCommand(command, passwordToAdd);
+      enterPassword(function (passwordToAdd) {
+        enterPassword(function (passwordConfirmation) {
+          if (passwordToAdd === passwordConfirmation) {
+            processCommand(command, password, passwordToAdd);
+          } else {
+            puts("Passwords don't match.");
+          }
         });
         puts('Again to confirm:');
       });
       puts('Enter password to add:');
-
     } else {
-      processCommand(command);
+      processCommand(command, password);
     }
   });
   puts('Enter encryption password:');
@@ -355,10 +360,10 @@ usage = function usage() {
     '',
     ' command:',
     '   g, generate url login   creates a new password',
-    '   a, add url login        adds a password generated elsewhere'
+    '   a, add url login        adds a password generated elsewhere',
     '   l, list                 displays all passwords',
     '   q, query term           finds a password',
-    '   r, remove site          removes a password, site and login',
+    '   r, remove url           removes a password, url and login',
     '',
     ' options:',
     '   --force   overwrite existing password',
