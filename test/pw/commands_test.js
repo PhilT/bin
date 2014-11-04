@@ -5,22 +5,20 @@ var test = require('../test').test,
     util = require('util'),
     passwords = [
       'github.com,phil@example.com,12345678',
-      'bitbucket.com,phil@example.com,87654321',
+      'http://bitbucket.com,phil@example.com,87654321',
       'github.com,another@example.com,11111111'
-    ].join('\n'),
-    viewCount = 0,
+    ].join('\n') + '\n',
     createView,
     setup,
     testMultipleMatches,
-    testSingleMatch;
+    testSingleMatch,
+    testListingAll;
 
 createView = function createView() {
-  viewCount += 1;
   return {
-    view: viewCount,
     buffer: '',
     write: function write() {
-      this.buffer += util.format.apply(this, arguments);
+      this.buffer += util.format.apply(this, arguments) + '\n';
     }
   };
 };
@@ -39,20 +37,36 @@ setup = function setup(assertions, done) {
 
 testSingleMatch = function testSingleMatch() {
   setup(function (view) {
-    var expected = 'Password for bitbucket.com copied to clipboard. Login: phil@example.com';
+    var expected = 'Password for http://bitbucket.com copied to clipboard. ' +
+      'Login: phil@example.com\n';
     test(view.buffer).equals(expected);
-  }, testMultipleMatches);
+  });
   commands.query(passwords, {args: ['bitbucket']});
 };
 
 testMultipleMatches = function testMultipleMatches() {
-  var expected = 'Multiple passwords matched. Displaying:' +
+  var expected = 'Multiple passwords matched. Displaying:\n' +
     'github.com,another@example.com,11111111\n' +
-    'github.com,phil@example.com,12345678',
+    'github.com,phil@example.com,12345678\n\n',
     view = createView();
+
   commands.setView(view);
   commands.query(passwords, {args: ['github']});
   test(view.buffer).equals(expected);
 };
 
+testListingAll = function testListingAll() {
+  var expected = 'Multiple passwords matched. Displaying:\n' +
+    'http://bitbucket.com,phil@example.com,87654321\n' +
+    'github.com,another@example.com,11111111\n' +
+    'github.com,phil@example.com,12345678\n\n',
+    view = createView();
+
+  commands.setView(view);
+  commands.query(passwords, {args: []});
+  test(view.buffer).equals(expected);
+};
+
+testListingAll();
+testMultipleMatches();
 testSingleMatch();
