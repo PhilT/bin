@@ -4,16 +4,32 @@ var assert = require('assert'),
     errors = [],
     passed,
     passCount = 0,
-    i;
+    tests = [],
+    currentTest = -1,
+    i,
+    runTests;
 
 process.on('SIGINT', function () {
   process.exit(0);
 });
 
-exports.test = function test(actual) {
+//TODO: support multiple describes in different files.
+exports.describe = function describe(description, func) {
+  func();
+  runTests();
+};
+
+exports.it = function it(description, func) {
+  tests.push({
+    description: description,
+    runItFunc: func
+  });
+};
+
+exports.expect = function expect(actual) {
   passed = '.';
   return {
-    equals: function equals(expected) {
+    toEqual: function toEqual(expected) {
       try {
         if (passed !== 'F') {
           assert.strictEqual(actual, expected);
@@ -45,3 +61,10 @@ process.on('exit', function () {
     console.log('PASSED %d assertions.', passCount);
   }
 });
+
+runTests = function runTests() {
+  var nextTest;
+  currentTest += 1;
+  nextTest = tests[currentTest];
+  if (nextTest) { nextTest.runItFunc(runTests); }
+};

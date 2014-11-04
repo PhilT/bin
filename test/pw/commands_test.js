@@ -1,6 +1,8 @@
 'use strict';
 
-var test = require('../test').test,
+var describe = require('../test').describe,
+    it = require('../test').it,
+    expect = require('../test').expect,
     commands = require('../../lib/pw/commands'),
     util = require('util'),
     passwords = [
@@ -9,10 +11,7 @@ var test = require('../test').test,
       'github.com,another@example.com,11111111'
     ].join('\n') + '\n',
     createView,
-    setup,
-    testMultipleMatches,
-    testSingleMatch,
-    testListingAll;
+    setup;
 
 createView = function createView() {
   return {
@@ -29,44 +28,45 @@ setup = function setup(assertions, done) {
   commands.setFlow({
     attemptExit: function attemptExit() {
       assertions(view);
-      if (done) { done(); }
+      done();
     },
     wantToExit: function wantToExit() {}
   });
 };
 
-testSingleMatch = function testSingleMatch() {
-  setup(function (view) {
-    var expected = 'Password for http://bitbucket.com copied to clipboard. ' +
-      'Login: phil@example.com\n';
-    test(view.buffer).equals(expected);
+describe('query', function () {
+  it('copies a single password to clipboard', function (done) {
+    setup(function (view) {
+      var expected = 'Password for http://bitbucket.com copied to clipboard. ' +
+        'Login: phil@example.com\n';
+      expect(view.buffer).toEqual(expected);
+    }, done);
+
+    commands.query(passwords, {args: ['bitbucket']});
   });
-  commands.query(passwords, {args: ['bitbucket']});
-};
 
-testMultipleMatches = function testMultipleMatches() {
-  var expected = 'Multiple passwords matched. Displaying:\n' +
-    'github.com,another@example.com,11111111\n' +
-    'github.com,phil@example.com,12345678\n\n',
-    view = createView();
+  it('lists passwords sorted when matching more than one', function (done) {
+    var expected = 'Multiple passwords matched. Displaying:\n' +
+      'github.com,another@example.com,11111111\n' +
+      'github.com,phil@example.com,12345678\n\n',
+      view = createView();
 
-  commands.setView(view);
-  commands.query(passwords, {args: ['github']});
-  test(view.buffer).equals(expected);
-};
+    commands.setView(view);
+    commands.query(passwords, {args: ['github']});
+    expect(view.buffer).toEqual(expected);
+    done();
+  });
 
-testListingAll = function testListingAll() {
-  var expected = 'Multiple passwords matched. Displaying:\n' +
-    'http://bitbucket.com,phil@example.com,87654321\n' +
-    'github.com,another@example.com,11111111\n' +
-    'github.com,phil@example.com,12345678\n\n',
-    view = createView();
+  it('lists all passwords sorted when no search term', function (done) {
+    var expected = 'Multiple passwords matched. Displaying:\n' +
+      'http://bitbucket.com,phil@example.com,87654321\n' +
+      'github.com,another@example.com,11111111\n' +
+      'github.com,phil@example.com,12345678\n\n',
+      view = createView();
 
-  commands.setView(view);
-  commands.query(passwords, {args: []});
-  test(view.buffer).equals(expected);
-};
-
-testListingAll();
-testMultipleMatches();
-testSingleMatch();
+    commands.setView(view);
+    commands.query(passwords, {args: []});
+    expect(view.buffer).toEqual(expected);
+    done();
+  });
+});

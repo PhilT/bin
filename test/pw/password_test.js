@@ -1,6 +1,8 @@
 'use strict';
 
-var test = require('../test').test,
+var describe = require('../test').describe,
+    it = require('../test').it,
+    expect = require('../test').expect,
     fail = require('../test').fail,
     password = require('../../lib/pw/password'),
     slotCount = 0,
@@ -26,5 +28,10 @@ password.rand = function rand(min, max) {
   fail('Unexpected call: rand(' + min + ', ' + (max || '') + ')');
 };
 
-test(password.generate(20)).equals('B1234CDEFGHIJKLMNOPQ');
-test(password.generate(10)).equals('RSTUV78WXY');
+//describe('generate', function () {
+  it('generates a password with at least 2 numbers', function (done) {
+    expect(password.generate(20)).toEqual('B1234CDEFGHIJKLMNOPQ');
+    expect(password.generate(10)).toEqual('RSTUV78WXY');
+    done();
+  });
+//});
