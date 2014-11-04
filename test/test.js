@@ -6,6 +6,10 @@ var assert = require('assert'),
     passCount = 0,
     i;
 
+process.on('SIGINT', function () {
+  process.exit(0);
+});
+
 exports.test = function test(actual) {
   passed = '.';
   return {

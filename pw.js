@@ -39,11 +39,11 @@
 var path = require('path'),
     spawn = require('child_process').spawn,
     fs = require('fs'),
-    puts = require('lib/pw/util').puts,
-    attemptExit = require('lib/pw/util').attemptExit,
-    wantToExit = require('lib/pw/util').wantToExit,
+    view = require('./lib/pw/view'),
+    attemptExit = require('./lib/pw/flow').attemptExit,
+    wantToExit = require('./lib/pw/flow').wantToExit,
     homePath = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE),
-    commands = {},
+    commands = require('./lib/pw/commands'),
     params = {args: [], force: false},
     enterPassword,
     extractOptions,
@@ -75,7 +75,7 @@ enterPassword = function enterPassword(callback) {
       stdin.setEncoding();
       callback(password);
     } else if (ch === "\u0003") {
-      puts();
+      view.write();
       process.exit();
     } else if (ch !== null) {
       password += ch;
@@ -108,7 +108,8 @@ gpg = function gpg(password, encrypt, input, callback) {
       passwords = '';
 
   if (encrypt) {
-    options.push('--symetric').push('--encrypt');
+    options.push('--symetric');
+    options.push('--encrypt');
   } else {
     options.push('--decrypt');
   }
@@ -127,8 +128,8 @@ loadConfig = function loadConfig(pathname) {
   config.passwordLength = config.passwordLength || 20;
 
   if (!config.dir || !config.file) {
-    puts(pathname + ' must exist with, for example:');
-    puts('{"dir": "path/to/password/file", "file": ".password.csv"}');
+    view.write(pathname + ' must exist with, for example:');
+    view.write('{"dir": "path/to/password/file", "file": ".password.csv"}');
     process.exit(1);
   }
   return config;
@@ -139,7 +140,7 @@ loadFile = function loadFile(pathname, encoding) {
   try {
     contents = fs.readFileSync(pathname, encoding);
   } catch (e) {
-    puts('Could not load file: ' + pathname);
+    view.write('Could not load file: ' + pathname);
     process.exit(1);
   }
   return contents;
@@ -195,7 +196,7 @@ savePasswordFile = function savePasswordFile(filepath, password, passwords) {
   wantToExit();
   gpg(password, true, passwords, function (encryptedPasswords) {
     fs.writeFileSync(filepath, encryptedPasswords);
-    puts('Password file updated.');
+    view.write('Password file updated.');
     attemptExit();
   });
 };
@@ -210,21 +211,21 @@ start = function start() {
           if (passwordToAdd === passwordConfirmation) {
             processCommand(command, password, passwordToAdd);
           } else {
-            puts("Passwords don't match.");
+            view.write("Passwords don't match.");
           }
         });
-        puts('Again to confirm:');
+        view.write('Again to confirm:');
       });
-      puts('Enter password to add:');
+      view.write('Enter password to add:');
     } else {
       processCommand(command, password);
     }
   });
-  puts('Enter encryption password:');
+  view.write('Enter encryption password:');
 };
 
 usage = function usage() {
-  puts([
+  view.write([
     'pw - generate, store and retrieve encrypted passwords',
     'install: npm install promise',
     'usage: pw command options',

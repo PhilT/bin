@@ -3,27 +3,56 @@
 var test = require('../test').test,
     commands = require('../../lib/pw/commands'),
     util = require('util'),
-    passwords = "github.com,phil@example.com,12345678\nbitbucket.com,phil@example.com,87654321\n",
-    view,
-    flow,
-    expected;
+    passwords = [
+      'github.com,phil@example.com,12345678',
+      'bitbucket.com,phil@example.com,87654321',
+      'github.com,another@example.com,11111111'
+    ].join('\n'),
+    viewCount = 0,
+    createView,
+    setup,
+    testMultipleMatches,
+    testSingleMatch;
 
-view = {
-  buffer: '',
-  write: function write() {
-    this.buffer += util.format.apply(this, arguments);
-  }
+createView = function createView() {
+  viewCount += 1;
+  return {
+    view: viewCount,
+    buffer: '',
+    write: function write() {
+      this.buffer += util.format.apply(this, arguments);
+    }
+  };
 };
 
-flow = {
-  attemptExit: function attemptExit() {
-    expected = 'Password for github.com copied to clipboard. Login: phil@example.com';
+setup = function setup(assertions, done) {
+  var view = createView();
+  commands.setView(view);
+  commands.setFlow({
+    attemptExit: function attemptExit() {
+      assertions(view);
+      if (done) { done(); }
+    },
+    wantToExit: function wantToExit() {}
+  });
+};
+
+testSingleMatch = function testSingleMatch() {
+  setup(function (view) {
+    var expected = 'Password for bitbucket.com copied to clipboard. Login: phil@example.com';
     test(view.buffer).equals(expected);
-  },
-  wantToExit: function wantToExit() {
-  }
+  }, testMultipleMatches);
+  commands.query(passwords, {args: ['bitbucket']});
 };
 
-commands.setView(view);
-commands.setFlow(flow);
-commands.query(passwords, {args: ['github']});
+testMultipleMatches = function testMultipleMatches() {
+  var expected = 'Multiple passwords matched. Displaying:' +
+    'github.com,another@example.com,11111111\n' +
+    'github.com,phil@example.com,12345678',
+    view = createView();
+  commands.setView(view);
+  commands.query(passwords, {args: ['github']});
+  test(view.buffer).equals(expected);
+};
+
+testSingleMatch();
