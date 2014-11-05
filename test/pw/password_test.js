@@ -28,10 +28,10 @@ password.rand = function rand(min, max) {
   fail('Unexpected call: rand(' + min + ', ' + (max || '') + ')');
 };
 
-//describe('generate', function () {
+describe('#generate', function () {
   it('generates a password with at least 2 numbers', function (done) {
     expect(password.generate(20)).toEqual('B1234CDEFGHIJKLMNOPQ');
     expect(password.generate(10)).toEqual('RSTUV78WXY');
     done();
   });
-//});
+});

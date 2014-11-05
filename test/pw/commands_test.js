@@ -34,7 +34,7 @@ setup = function setup(assertions, done) {
   });
 };
 
-describe('query', function () {
+describe('#query', function () {
   it('copies a single password to clipboard', function (done) {
     setup(function (view) {
       var expected = 'Password for http://bitbucket.com copied to clipboard. ' +

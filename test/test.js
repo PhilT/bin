@@ -6,27 +6,30 @@ var assert = require('assert'),
     passCount = 0,
     tests = [],
     currentTest = -1,
-    i,
-    runTests;
+    doc = process.argv[2],
+    description,
+    i;
 
 process.on('SIGINT', function () {
   process.exit(0);
 });
 
-//TODO: support multiple describes in different files.
-exports.describe = function describe(description, func) {
+exports.describe = function describe(desc, func) {
+  description = desc;
   func();
-  runTests();
 };
 
-exports.it = function it(description, func) {
+exports.it = function it(title, func) {
   tests.push({
-    description: description,
+    description: description + ' ' + title,
     runItFunc: func
   });
 };
 
 exports.expect = function expect(actual) {
+  var error = {
+    test: tests[currentTest]
+  };
   passed = '.';
   return {
     toEqual: function toEqual(expected) {
@@ -36,10 +39,12 @@ exports.expect = function expect(actual) {
           passCount += 1;
         }
       } catch (e) {
-        errors.push(e);
+        error.stack = e.stack;
+        errors.push(error);
         passed = 'F';
       }
       process.stdout.write(passed);
+      if (doc === 'doc') { console.log(' %s', error.test.description); }
     }
   };
 };
@@ -54,15 +59,15 @@ process.on('exit', function () {
   if (errors.length > 0) {
     console.log('FAILED - %d assertions passed, %d assertions failed.', passCount, errors.length);
     for (i = 0; i < errors.length; i += 1) {
-      console.log("\n%d >>>", i + 1);
-      console.log(errors[i]);
+      console.log("\n%d >>> %s %s", i + 1, errors[i].test.description);
+      console.log(errors[i].stack);
     }
   } else {
     console.log('PASSED %d assertions.', passCount);
   }
 });
 
-runTests = function runTests() {
+exports.runTests = function runTests() {
   var nextTest;
   currentTest += 1;
   nextTest = tests[currentTest];
