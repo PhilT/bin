@@ -1,94 +1,117 @@
 'use strict';
 
-var assert = require('assert'),
-    errors = [],
+var assertions = require('assert'),
+    failures = [],
     passed,
     passCount = 0,
+    failureCount = 0,
+    errorCount = 0,
     tests = [],
-    currentTest = -1,
-    doc = process.argv[2],
-    description,
-    beforeFunc,
-    currentFile,
+    testIndex = -1,
+    testCount,
+    timeoutId,
+    subject,
+    runSetup,
     i,
-    runTests;
+    runTests,
+    timeoutError,
+    done,
+    fileLine;
 
 process.on('SIGINT', function () {
   process.exit(0);
 });
 
-global.describe = function describe(desc, func) {
-  description = desc;
-  func();
+global.setup = function setup(func) {
+  runSetup = func;
 };
 
-global.before = function before(func) {
-  beforeFunc = func;
-};
-
-global.it = function it(title, func) {
+global.test = function test(func) {
+  var caller = (new Error()).stack;
   tests.push({
-    subject: require('../lib/pw/' + currentFile.replace('_test.js', '')),
-    description: description + ' ' + title,
-    beforeFunc: beforeFunc,
-    runItFunc: func
+    stack: caller,
+    subject: subject,
+    runSetup: runSetup,
+    runTest: func,
+    async: (func.length === 1)
   });
 };
 
-global.expect = function expect(actual) {
-  var error = {
-    test: tests[currentTest]
-  };
+global.assert = function assert(actual, expected) {
   passed = '.';
-  return {
-    toEqual: function toEqual(expected) {
-      try {
-        if (passed !== 'F') {
-          assert.strictEqual(actual, expected);
-          passCount += 1;
-        }
-      } catch (e) {
-        error.stack = e.stack;
-        errors.push(error);
-        passed = 'F';
-      }
-      process.stdout.write(passed);
-      if (doc === 'doc') { console.log(' %s', error.test.description); }
+
+  try {
+    if (passed !== 'F') {
+      assertions.strictEqual(actual, expected);
+      passCount += 1;
     }
-  };
+  } catch (e) {
+    failures.push(e.stack);
+    failureCount += 1;
+    passed = 'F';
+  }
+  process.stdout.write(passed);
 };
 
 global.fail = function fail(message) {
-  errors.push(message);
-  passed = 'F';
+  failures.push(message);
+  process.stdout.write('F');
 };
 
 process.on('exit', function () {
+  var message;
+
   console.log('\n');
-  if (errors.length > 0) {
-    console.log('FAILED - %d assertions passed, %d assertions failed.', passCount, errors.length);
-    for (i = 0; i < errors.length; i += 1) {
-      console.log("\n%d >>> %s %s", i + 1, errors[i].test.description);
-      console.log(errors[i].stack);
+  if (errorCount > 0 || failureCount > 0) {
+    message = 'FAILED - %d assertions passed, %d assertions failed, %d errors.';
+    console.log(message, passCount, failureCount, errorCount);
+    console.log('\nFailures:');
+    for (i = 0; i < failures.length; i += 1) {
+      console.log('  ' + fileLine(failures[i]));
     }
   } else {
-    console.log('PASSED %d assertions.', passCount);
+    console.log('PASSED - %d assertions.', passCount);
   }
 });
 
 runTests = function runTests() {
-  var nextTest;
-  currentTest += 1;
-  nextTest = tests[currentTest];
-  if (nextTest) {
-    if (nextTest.beforeFunc) { nextTest.beforeFunc(); }
-    nextTest.runItFunc(runTests);
+  var test;
+
+  testCount = tests.length;
+  testIndex += 1;
+  test = tests[testIndex];
+  if (!test) { return; }
+
+  global.subject = test.subject;
+  if (test.runSetup) { test.runSetup(); }
+  if (test.async) {
+    timeoutId = setTimeout(timeoutError, 1000);
   }
+  test.runTest(done);
+  if (!test.async) { runTests(); }
+};
+
+fileLine = function fileLine(stack) {
+  var line = stack.split('\n')[2];
+  line = line.match(/\((.*:[0-9]+):[0-9]+\)/);
+  return line[1];
+};
+
+timeoutError = function timeoutError() {
+  errorCount += 1;
+  failures.push('Async timeout in test ' + fileLine(tests[testIndex].stack));
+  process.stdout.write('E');
+  runTests();
+};
+
+done = function done() {
+  clearTimeout(timeoutId);
+  runTests();
 };
 
 require("fs").readdirSync('./test/pw').forEach(function (file) {
-  currentFile = file;
-  require("./pw/" + currentFile);
+  subject = require('../lib/pw/' + file.replace('_test.js', ''));
+  require("./pw/" + file);
 });
 
 runTests();
