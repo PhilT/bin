@@ -10,7 +10,7 @@ var assertions = require('assert'),
     testIndex = -1,
     testCount,
     timeoutId,
-    subject,
+    testSubject,
     runSetup,
     i,
     runTests,
@@ -27,10 +27,12 @@ global.setup = function setup(func) {
 };
 
 global.test = function test(func) {
-  var caller = (new Error()).stack;
+  var caller;
+
+  try { throw new Error(); } catch (e) { caller = e.stack; }
   tests.push({
     stack: caller,
-    subject: subject,
+    subject: testSubject,
     runSetup: runSetup,
     runTest: func,
     async: (func.length === 1)
@@ -110,7 +112,7 @@ done = function done() {
 };
 
 require("fs").readdirSync('./test/pw').forEach(function (file) {
-  subject = require('../lib/pw/' + file.replace('_test.js', ''));
+  testSubject = require('../lib/pw/' + file.replace('_test.js', ''));
   require("./pw/" + file);
 });
 
