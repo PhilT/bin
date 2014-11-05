@@ -8,6 +8,7 @@ var assert = require('assert'),
     currentTest = -1,
     doc = process.argv[2],
     description,
+    beforeFunc,
     i;
 
 process.on('SIGINT', function () {
@@ -19,9 +20,14 @@ exports.describe = function describe(desc, func) {
   func();
 };
 
+exports.before = function before(func) {
+  beforeFunc = func;
+};
+
 exports.it = function it(title, func) {
   tests.push({
     description: description + ' ' + title,
+    beforeFunc: beforeFunc,
     runItFunc: func
   });
 };
@@ -71,5 +77,8 @@ exports.runTests = function runTests() {
   var nextTest;
   currentTest += 1;
   nextTest = tests[currentTest];
-  if (nextTest) { nextTest.runItFunc(runTests); }
+  if (nextTest) {
+    if (nextTest.beforeFunc) { nextTest.beforeFunc(); }
+    nextTest.runItFunc(runTests);
+  }
 };

@@ -1,6 +1,7 @@
 'use strict';
 
 var describe = require('../test').describe,
+    before = require('../test').before,
     it = require('../test').it,
     expect = require('../test').expect,
     commands = require('../../lib/pw/commands'),
@@ -11,7 +12,8 @@ var describe = require('../test').describe,
       'github.com,another@example.com,11111111'
     ].join('\n') + '\n',
     createView,
-    setup;
+    setup,
+    view;
 
 createView = function createView() {
   return {
@@ -23,8 +25,6 @@ createView = function createView() {
 };
 
 setup = function setup(assertions, done) {
-  var view = createView();
-  commands.setView(view);
   commands.setFlow({
     attemptExit: function attemptExit() {
       assertions(view);
@@ -35,6 +35,11 @@ setup = function setup(assertions, done) {
 };
 
 describe('#query', function () {
+  before(function () {
+    view = createView();
+    commands.setView(view);
+  });
+
   it('copies a single password to clipboard', function (done) {
     setup(function (view) {
       var expected = 'Password for http://bitbucket.com copied to clipboard. ' +
@@ -48,10 +53,8 @@ describe('#query', function () {
   it('lists passwords sorted when matching more than one', function (done) {
     var expected = 'Multiple passwords matched. Displaying:\n' +
       'github.com,another@example.com,11111111\n' +
-      'github.com,phil@example.com,12345678\n\n',
-      view = createView();
+      'github.com,phil@example.com,12345678\n\n';
 
-    commands.setView(view);
     commands.query(passwords, {args: ['github']});
     expect(view.buffer).toEqual(expected);
     done();
@@ -61,10 +64,8 @@ describe('#query', function () {
     var expected = 'Multiple passwords matched. Displaying:\n' +
       'http://bitbucket.com,phil@example.com,87654321\n' +
       'github.com,another@example.com,11111111\n' +
-      'github.com,phil@example.com,12345678\n\n',
-      view = createView();
+      'github.com,phil@example.com,12345678\n\n';
 
-    commands.setView(view);
     commands.query(passwords, {args: []});
     expect(view.buffer).toEqual(expected);
     done();

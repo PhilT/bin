@@ -1,13 +1,14 @@
 'use strict';
 
 var describe = require('../test').describe,
+    before = require('../test').before,
     it = require('../test').it,
     expect = require('../test').expect,
     fail = require('../test').fail,
     password = require('../../lib/pw/password'),
-    slotCount = 0,
-    charCount = 0,
-    numCount = 0;
+    slotCount,
+    charCount,
+    numCount;
 
 password.rand = function rand(min, max) {
   if (min === 2 && max === 5) {
@@ -29,9 +30,19 @@ password.rand = function rand(min, max) {
 };
 
 describe('#generate', function () {
-  it('generates a password with at least 2 numbers', function (done) {
+  before(function () {
+    slotCount = 0;
+    charCount = 0;
+    numCount = 0;
+  });
+
+  it('returns a password with 4 numbers', function (done) {
     expect(password.generate(20)).toEqual('B1234CDEFGHIJKLMNOPQ');
-    expect(password.generate(10)).toEqual('RSTUV78WXY');
+    done();
+  });
+
+  it('returns a password with 2 numbers', function (done) {
+    expect(password.generate(10)).toEqual('B34CDEFGHI');
     done();
   });
 });
