@@ -1,11 +1,6 @@
 'use strict';
 
-var describe = require('../test').describe,
-    before = require('../test').before,
-    it = require('../test').it,
-    expect = require('../test').expect,
-    commands = require('../../lib/pw/commands'),
-    util = require('util'),
+var util = require('util'),
     passwords = [
       'github.com,phil@example.com,12345678',
       'http://bitbucket.com,phil@example.com,87654321',
@@ -25,7 +20,7 @@ createView = function createView() {
 };
 
 setup = function setup(assertions, done) {
-  commands.setFlow({
+  subject.setFlow({
     attemptExit: function attemptExit() {
       assertions(view);
       done();
@@ -36,8 +31,9 @@ setup = function setup(assertions, done) {
 
 describe('#query', function () {
   before(function () {
+    debugger
     view = createView();
-    commands.setView(view);
+    subject.setView(view);
   });
 
   it('copies a single password to clipboard', function (done) {
@@ -47,7 +43,7 @@ describe('#query', function () {
       expect(view.buffer).toEqual(expected);
     }, done);
 
-    commands.query(passwords, {args: ['bitbucket']});
+    subject.query(passwords, {args: ['bitbucket']});
   });
 
   it('lists passwords sorted when matching more than one', function (done) {
@@ -55,7 +51,7 @@ describe('#query', function () {
       'github.com,another@example.com,11111111\n' +
       'github.com,phil@example.com,12345678\n\n';
 
-    commands.query(passwords, {args: ['github']});
+    subject.query(passwords, {args: ['github']});
     expect(view.buffer).toEqual(expected);
     done();
   });
@@ -66,7 +62,7 @@ describe('#query', function () {
       'github.com,another@example.com,11111111\n' +
       'github.com,phil@example.com,12345678\n\n';
 
-    commands.query(passwords, {args: []});
+    subject.query(passwords, {args: []});
     expect(view.buffer).toEqual(expected);
     done();
   });
