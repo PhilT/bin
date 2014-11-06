@@ -12,8 +12,6 @@ var assertions = require('assert'),
     testSubject,
     runSetup,
     runTests,
-    timeoutError,
-    done,
     fileLine,
     progress,
     count;
@@ -26,7 +24,7 @@ global.setup = function setup(func) {
   runSetup = func;
 };
 
-global.test = function test(func) {
+global.test = function test(description, func) {
   var caller;
 
   try { throw new Error(); } catch (e) { caller = e.stack; }
@@ -54,7 +52,7 @@ global.assert = function assert(actual, expected) {
     assertions.strictEqual(actual, expected);
     progress('.');
   } catch (e) {
-    progress('F', fileLine(e.stack));
+    progress('F', fileLine(e.stack) + ' ' + e.stack.split('\n')[0]);
   }
 };
 
@@ -65,16 +63,15 @@ global.fail = function fail(message) {
 process.on('exit', function () {
   var message, i;
 
-  console.log('\n');
   if (bar.match(/F|E|T/)) {
-    message = 'FAILED - %d assertions passed, %d assertions failed, %d errors, %d timed out.';
+    message = '\nFAILED - %d assertions passed, %d assertions failed, %d errors, %d timed out.';
     console.log(message, count('.'), count('F'), count('E'), count('T'));
-    console.log('\nFailures:');
+    console.log('Failures:');
     for (i = 0; i < failures.length; i += 1) {
       console.log('  ' + failures[i]);
     }
   } else {
-    console.log('PASSED - %d assertions.', bar.length);
+    console.log('\nPASSED - %d assertions.', bar.length);
   }
 });
 
@@ -88,10 +85,16 @@ runTests = function runTests() {
   global.subject = test.subject;
   if (test.runSetup) { test.runSetup(); }
   if (test.async) {
-    timeoutId = setTimeout(timeoutError, 1000);
+    timeoutId = setTimeout(function () {
+      progress('T', 'Async timeout in test ' + fileLine(tests[testIndex].stack));
+      runTests();
+    }, 1000);
   }
   try {
-    test.runTest(done);
+    test.runTest(function () {
+      clearTimeout(timeoutId);
+      runTests();
+    });
   } catch (e) {
     progress('E', fileLine(e.stack));
   }
@@ -99,18 +102,7 @@ runTests = function runTests() {
 };
 
 fileLine = function fileLine(stack) {
-  var line = stack.split('\n')[2];
-  return line.match(/\((.*:[0-9]+):[0-9]+\)/)[1];
-};
-
-timeoutError = function timeoutError() {
-  progress('T', 'Async timeout in test ' + fileLine(tests[testIndex].stack));
-  runTests();
-};
-
-done = function done() {
-  clearTimeout(timeoutId);
-  runTests();
+  return stack.split('\n')[2].match(/\((.*:[0-9]+):[0-9]+\)/)[1];
 };
 
 require("fs").readdirSync('./test/pw').forEach(function (file) {

@@ -17,6 +17,7 @@
 //               Implemented new password generation algorithm
 //               Removed safe option. Use only alphanumeric but 20 chars.
 //               implemented query (all) (instead of edit)
+//               commands explicitly specified now
 // version 0.7 - Fixed incorrect use of extended bash if
 //               Added description
 // version 0.6 - Silence some verbose commands
@@ -234,7 +235,7 @@ usage = function usage() {
     '   g, generate url login   creates a new password',
     '   a, add url login        adds a password generated elsewhere',
     '   q, query [term]         finds a password or lists matches (or all)',
-    '   r, remove url           removes a password, url and login',
+    '   r, remove url login     removes a password, url and login',
     '',
     ' options:',
     '   --force   overwrite existing password',

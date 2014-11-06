@@ -2,7 +2,8 @@
 
 var slotCount,
     charCount,
-    numCount;
+    numCount,
+    createFlow;
 
 setup(function () {
   subject.rand = function rand(min, max) {
@@ -29,10 +30,34 @@ setup(function () {
   numCount = 0;
 });
 
-test(function () {
+test('generate long password', function () {
   assert(subject.generate(20), 'B1234CDEFGHIJKLMNOPQ');
 });
 
-test(function () {
+test('generate short password', function () {
   assert(subject.generate(10), 'B34CDEFGHI');
 });
+
+
+/*
+createFlow = function createFlow(expected, done) {
+  return {
+    attemptExit: function attemptExit() {
+      if (expected) {
+        assert(view.buffer, expected);
+        done();
+      }
+    },
+    wantToExit: function wantToExit() {}
+  };
+};
+
+
+subject.setFlow(createFlow(
+  'Password for http://bitbucket.com copied to clipboard. ' +
+    'Login: phil@example.com\n',
+  done
+));
+
+
+*/
