@@ -1,22 +1,22 @@
 'use strict';
 
+// simpltest version 0.1
+// @author Phil Thompson
+
 var assertions = require('assert'),
-    failures = [],
-    passed,
-    passCount = 0,
-    failureCount = 0,
-    errorCount = 0,
     tests = [],
+    failures = [],
+    bar = '',
     testIndex = -1,
-    testCount,
     timeoutId,
     testSubject,
     runSetup,
-    i,
     runTests,
     timeoutError,
     done,
-    fileLine;
+    fileLine,
+    progress,
+    count;
 
 process.on('SIGINT', function () {
   process.exit(0);
@@ -39,47 +39,48 @@ global.test = function test(func) {
   });
 };
 
-global.assert = function assert(actual, expected) {
-  passed = '.';
+progress = function progress(type, message) {
+  if (message) { failures.push(message); }
+  bar += type;
+  process.stdout.write(type);
+};
 
+count = function count(type) {
+  return (bar.match(new RegExp('\\' + type, 'g')) || []).length;
+};
+
+global.assert = function assert(actual, expected) {
   try {
-    if (passed !== 'F') {
-      assertions.strictEqual(actual, expected);
-      passCount += 1;
-    }
+    assertions.strictEqual(actual, expected);
+    progress('.');
   } catch (e) {
-    failures.push(e.stack);
-    failureCount += 1;
-    passed = 'F';
+    progress('F', fileLine(e.stack));
   }
-  process.stdout.write(passed);
 };
 
 global.fail = function fail(message) {
-  failures.push(message);
-  process.stdout.write('F');
+  progress('F', message);
 };
 
 process.on('exit', function () {
-  var message;
+  var message, i;
 
   console.log('\n');
-  if (errorCount > 0 || failureCount > 0) {
-    message = 'FAILED - %d assertions passed, %d assertions failed, %d errors.';
-    console.log(message, passCount, failureCount, errorCount);
+  if (bar.match(/F|E|T/)) {
+    message = 'FAILED - %d assertions passed, %d assertions failed, %d errors, %d timed out.';
+    console.log(message, count('.'), count('F'), count('E'), count('T'));
     console.log('\nFailures:');
     for (i = 0; i < failures.length; i += 1) {
-      console.log('  ' + fileLine(failures[i]));
+      console.log('  ' + failures[i]);
     }
   } else {
-    console.log('PASSED - %d assertions.', passCount);
+    console.log('PASSED - %d assertions.', bar.length);
   }
 });
 
 runTests = function runTests() {
   var test;
 
-  testCount = tests.length;
   testIndex += 1;
   test = tests[testIndex];
   if (!test) { return; }
@@ -89,20 +90,21 @@ runTests = function runTests() {
   if (test.async) {
     timeoutId = setTimeout(timeoutError, 1000);
   }
-  test.runTest(done);
+  try {
+    test.runTest(done);
+  } catch (e) {
+    progress('E', fileLine(e.stack));
+  }
   if (!test.async) { runTests(); }
 };
 
 fileLine = function fileLine(stack) {
   var line = stack.split('\n')[2];
-  line = line.match(/\((.*:[0-9]+):[0-9]+\)/);
-  return line[1];
+  return line.match(/\((.*:[0-9]+):[0-9]+\)/)[1];
 };
 
 timeoutError = function timeoutError() {
-  errorCount += 1;
-  failures.push('Async timeout in test ' + fileLine(tests[testIndex].stack));
-  process.stdout.write('E');
+  progress('T', 'Async timeout in test ' + fileLine(tests[testIndex].stack));
   runTests();
 };
 
