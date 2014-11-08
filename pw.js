@@ -41,6 +41,7 @@ var path = require('path'),
     spawn = require('child_process').spawn,
     fs = require('fs'),
     view = require('./lib/pw/view'),
+    flow = require('./lib/pw/flow'),
     attemptExit = require('./lib/pw/flow').attemptExit,
     wantToExit = require('./lib/pw/flow').wantToExit,
     homePath = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE),
@@ -111,7 +112,6 @@ gpg = function gpg(password, encrypt, input, done, to) {
 
   if (encrypt) {
     args.push('--symmetric');
-    options = {encoding: 'binary'};
   } else {
     args.push('--decrypt');
   }
@@ -162,7 +162,7 @@ loadJson = function loadJson(pathname) {
 
 loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
   var encryptedPasswords = loadFile(pathname);
-  if (!encryptedPasswords) { return callback(''); }
+  if (!encryptedPasswords) { throw new Error('Could not load file'); }
   gpg(password, false, encryptedPasswords, function (passwords) {
     callback(passwords);
   });
@@ -195,11 +195,11 @@ processCommand = function processCommand(command, password, passwordToAdd) {
 
   loadPasswordFile(passwordFile, password, function (passwords) {
     var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
+    flow.wantToExit();
     if (newPasswords !== passwords && newPasswords && newPasswords !== '') {
       savePasswordFile(passwordFile, password, newPasswords);
-    } else {
-      process.exit();
     }
+    flow.attemptExit();
   });
 };
 
@@ -244,10 +244,10 @@ usage = function usage() {
     '   g, generate url login   creates a new password',
     '   a, add url login        adds a password generated elsewhere',
     '   q, query [term]         finds a password or lists matches (or all)',
-    '   r, remove url login     removes a password, url and login',
+    '   r, remove url [login]   removes a password login required when url not unique',
     '',
     ' options:',
-    '   --force   overwrite existing password',
+    '   --force   overwrite existing password or remove multiple entries',
     '',
     ' notes:',
     '   query will copy a password to clipboard if a single match is found.',

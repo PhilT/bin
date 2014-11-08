@@ -93,7 +93,30 @@ test('list all', function () {
   assert(view.buffer, expected);
 });
 
-test('remove', function () {
+test('remove with login', function () {
   newPasswords = subject.remove(passwords, {args: ['github.com', 'phil@example.com']});
   assert(newPasswords.split('\n')[0], passwords.split('\n')[1]);
+});
+
+test('remove without login', function () {
+  newPasswords = subject.remove(passwords, {args: ['http://bitbucket.com']});
+  assert(newPasswords.split('\n')[1], passwords.split('\n')[2]);
+});
+
+test('will not remove when more than one match', function () {
+  newPasswords = subject.remove(passwords, {args: ['github.com']});
+  assert(newPasswords.split('\n')[0], passwords.split('\n')[0]);
+  assert(newPasswords.split('\n')[2], passwords.split('\n')[2]);
+  assert(view.buffer, 'Matches more than one password. Add login to qualify or --force.\n');
+});
+
+test('removes when more than one match and --force', function () {
+  newPasswords = subject.remove(passwords, {args: ['github.com'], force: true});
+  assert(newPasswords.split('\n').length, 2);
+});
+
+test('warns when no matches', function () {
+  newPasswords = subject.remove(passwords, {args: ['bla'], force: true});
+  assert(view.buffer, 'No matches.\n');
+  assert(newPasswords.split('\n').length, 4);
 });
