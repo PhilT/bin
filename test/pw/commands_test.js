@@ -89,7 +89,7 @@ test('list all', function () {
     'github.com,another@example.com,11111111\n' +
     'github.com,phil@example.com,12345678\n\n';
 
-  subject.query(passwords, {args: []});
+  subject.query(passwords, {args: [null]});
   assert(view.buffer, expected);
 });
 

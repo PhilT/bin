@@ -60,7 +60,7 @@ var path = require('path'),
     usage;
 
 process.on('SIGINT', function () {
-  process.exit(0);
+  process.exit();
 });
 
 enterPassword = function enterPassword(callback) {
@@ -93,12 +93,13 @@ extractOptions = function extractOptions() {
 };
 
 gpg = function gpg(password, encrypt, input, callback) {
-  var options = [
+  var options = {},
+      args = [
         '--no-permission-warning',
         '--no-secmem-warning',
         '--force-mdc',
         '--no-tty',
-        '-q',
+        '--quiet',
         '--no-use-agent',
         '--yes',
         '--passphrase=' + password,
@@ -109,18 +110,22 @@ gpg = function gpg(password, encrypt, input, callback) {
       passwords = '';
 
   if (encrypt) {
-    options.push('--symetric');
-    options.push('--encrypt');
+    args.push('--symmetric');
+    options = {encoding: 'binary'};
   } else {
-    options.push('--decrypt');
+    args.push('--decrypt');
   }
-  child = spawn('gpg', options);
+  child = spawn('gpg', args, options);
   child.on('close', function () {
     callback(passwords);
   });
   child.stdout.on('data', function (data) {
-    passwords += data.toString('utf8');
+    passwords += data;
   });
+  child.stderr.on('data', function (data) {
+    view.write(data.toString());
+  });
+
   child.stdin.end(input);
 };
 
@@ -154,7 +159,7 @@ loadJson = function loadJson(pathname) {
 loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
   var encryptedPasswords = loadFile(pathname);
   if (!encryptedPasswords) { return callback(''); }
-  gpg(password, false, fs.readFileSync(pathname), function (passwords) {
+  gpg(password, false, encryptedPasswords, function (passwords) {
     callback(passwords);
   });
 };
@@ -173,7 +178,7 @@ parseArgs = function parseArgs() {
 
   if (index === -1) {
     usage();
-    process.exit(0);
+    process.exit();
   }
 
   return commands[index % (commands.length / 2)];
@@ -187,17 +192,22 @@ processCommand = function processCommand(command, password, passwordToAdd) {
   loadPasswordFile(passwordFile, password, function (passwords) {
     var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
     if (newPasswords !== passwords) {
-      savePasswordFile(passwordFile, password, passwords);
+      savePasswordFile(passwordFile, password, newPasswords);
+    } else {
+      process.exit();
     }
-    process.exit();
   });
 };
 
 savePasswordFile = function savePasswordFile(filepath, password, passwords) {
   wantToExit();
   gpg(password, true, passwords, function (encryptedPasswords) {
-    fs.writeFileSync(filepath, encryptedPasswords);
-    view.write('Password file updated.');
+    if (encryptedPasswords === '' || !encryptedPasswords) {
+      view.write('Problem encrypting passwords.');
+    } else {
+      fs.writeFileSync(filepath, encryptedPasswords, 'binary');
+      view.write('Password file updated.');
+    }
     attemptExit();
   });
 };
