@@ -92,7 +92,7 @@ extractOptions = function extractOptions() {
   }
 };
 
-gpg = function gpg(password, encrypt, input, callback) {
+gpg = function gpg(password, encrypt, input, done, to) {
   var options = {},
       args = [
         '--no-permission-warning',
@@ -116,12 +116,16 @@ gpg = function gpg(password, encrypt, input, callback) {
     args.push('--decrypt');
   }
   child = spawn('gpg', args, options);
-  child.on('close', function () {
-    callback(passwords);
+  child.on('exit', function () {
+    done(passwords);
   });
-  child.stdout.on('data', function (data) {
-    passwords += data;
-  });
+  if (to) {
+    child.stdout.pipe(to);
+  } else {
+    child.stdout.on('data', function (data) {
+      passwords += data;
+    });
+  }
   child.stderr.on('data', function (data) {
     view.write(data.toString());
   });
@@ -131,7 +135,7 @@ gpg = function gpg(password, encrypt, input, callback) {
 
 loadConfig = function loadConfig(pathname) {
   var config = loadJson(pathname);
-  config.passwordLength = config.passwordLength || 20;
+  config.passwordLength = config.passwordLength || 15;
 
   if (!config.dir || !config.file) {
     view.write(pathname + ' must exist with, for example:');
@@ -191,7 +195,7 @@ processCommand = function processCommand(command, password, passwordToAdd) {
 
   loadPasswordFile(passwordFile, password, function (passwords) {
     var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
-    if (newPasswords !== passwords) {
+    if (newPasswords !== passwords && newPasswords && newPasswords !== '') {
       savePasswordFile(passwordFile, password, newPasswords);
     } else {
       process.exit();
@@ -201,15 +205,10 @@ processCommand = function processCommand(command, password, passwordToAdd) {
 
 savePasswordFile = function savePasswordFile(filepath, password, passwords) {
   wantToExit();
-  gpg(password, true, passwords, function (encryptedPasswords) {
-    if (encryptedPasswords === '' || !encryptedPasswords) {
-      view.write('Problem encrypting passwords.');
-    } else {
-      fs.writeFileSync(filepath, encryptedPasswords, 'binary');
-      view.write('Password file updated.');
-    }
+  gpg(password, true, passwords, function () {
+    view.write('Password file updated.');
     attemptExit();
-  });
+  }, fs.createWriteStream(filepath));
 };
 
 start = function start() {
