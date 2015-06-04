@@ -12,6 +12,7 @@
 // Only dependency is node (No node modules are required).
 //
 // Find pw and other useful scripts at https://github.com/PhilT/bin
+// version 0.10- Fix add
 //
 // version 0.9 - Fix compatibility issues with GPG2
 //               fix an issue with overwritten password file
@@ -46,10 +47,14 @@ var path = require('path'),
     flow = require('./lib/pw/flow'),
     attemptExit = require('./lib/pw/flow').attemptExit,
     wantToExit = require('./lib/pw/flow').wantToExit,
-    homePath = (process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE),
-    commands = require('./lib/pw/commands'),
-    params = {args: [], force: false},
-    enterPassword,
+    commands = require('./lib/pw/commands');
+
+var homePath = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE,
+    params = {args: [], force: false};
+
+var enterPassword,
+    passwordCallback,
+    resetStdin,
     extractOptions,
     gpg,
     loadConfig,
@@ -63,32 +68,38 @@ var path = require('path'),
     usage;
 
 process.on('SIGINT', function () {
-  process.exit();
+  throw 'User aborted.';
 });
 
-enterPassword = function enterPassword(callback) {
+enterPassword = function enterPassword() {
   var password = '',
       stdin = process.stdin;
+  var ch;
 
   stdin.setEncoding('utf8');
   stdin.setRawMode(true);
   stdin.on('readable', function () {
-    var ch = stdin.read();
-    if (ch === "\r") {
-      stdin.setRawMode(false);
-      stdin.setEncoding();
-      callback(password);
-    } else if (ch === "\u0003") {
+    ch = stdin.read();
+    if (ch === '\r') {
+      passwordCallback(password);
+      password = '';
+    } else if (ch === '\u0003') {
       view.write();
-      process.exit();
+      throw 'User aborted';
     } else if (ch !== null) {
       password += ch;
     }
   });
 };
 
+resetStdin = function resetStdin() {
+  process.stdin.setRawMode(false);
+  process.stdin.setEncoding();
+};
+
 extractOptions = function extractOptions() {
   var index = params.args.indexOf('--force');
+
   if (index > -1) {
     params.args.splice(index, 1);
     params.force = true;
@@ -131,7 +142,7 @@ gpg = function gpg(password, encrypt, input, done, to) {
   }
   child.stderr.on('data', function (data) {
     view.write(data.toString());
-    process.exit(1);
+    throw 'Error reading data';
   });
 
   child.stdin.end(input);
@@ -139,23 +150,24 @@ gpg = function gpg(password, encrypt, input, done, to) {
 
 loadConfig = function loadConfig(pathname) {
   var config = loadJson(pathname);
+
   config.passwordLength = config.passwordLength || 15;
 
   if (!config.dir || !config.file) {
     view.write(pathname + ' must exist with, for example:');
     view.write('{"dir": "path/to/password/file", "file": ".password.csv"}');
-    process.exit(1);
+    throw 'No config file';
   }
   return config;
 };
 
 loadFile = function loadFile(pathname, encoding) {
   var contents;
+
   try {
     contents = fs.readFileSync(pathname, encoding);
   } catch (e) {
-    view.write('Could not load file: ' + pathname);
-    process.exit(1);
+    throw 'Could not load file: ' + pathname;
   }
   return contents;
 };
@@ -166,6 +178,7 @@ loadJson = function loadJson(pathname) {
 
 loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
   var encryptedPasswords = loadFile(pathname);
+
   if (!encryptedPasswords) { throw new Error('Could not load file'); }
   gpg(password, false, encryptedPasswords, function (passwords) {
     callback(passwords);
@@ -174,22 +187,22 @@ loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
 
 parseArgs = function parseArgs() {
   var command,
-      commands = ['add', 'remove', 'generate', 'query'],
+      commandList = ['add', 'remove', 'generate', 'query'],
       index;
 
   params.args = process.argv.slice(2);
   extractOptions(params);
   command = params.args.shift();
 
-  commands = commands.concat(commands.map(function (command) { return command[0]; }));
-  index = commands.indexOf(command);
+  commandList = commandList.concat(commandList.map(function (c) { return c[0]; }));
+  index = commandList.indexOf(command);
 
   if (index === -1) {
     usage();
-    process.exit();
+    throw 'Unknown command';
   }
 
-  return commands[index % (commands.length / 2)];
+  return commandList[index % (commandList.length / 2)];
 };
 
 processCommand = function processCommand(command, password, passwordToAdd) {
@@ -199,6 +212,7 @@ processCommand = function processCommand(command, password, passwordToAdd) {
 
   loadPasswordFile(passwordFile, password, function (passwords) {
     var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
+
     flow.wantToExit();
     if (newPasswords !== passwords && newPasswords && newPasswords !== '') {
       savePasswordFile(passwordFile, password, newPasswords);
@@ -218,24 +232,29 @@ savePasswordFile = function savePasswordFile(filepath, password, passwords) {
 start = function start() {
   var command = parseArgs();
 
-  enterPassword(function (password) {
+  passwordCallback = function (password) {
     if (command === 'add') {
-      enterPassword(function (passwordToAdd) {
-        enterPassword(function (passwordConfirmation) {
+      passwordCallback = function (passwordToAdd) {
+        passwordCallback = function (passwordConfirmation) {
           if (passwordToAdd === passwordConfirmation) {
+            view.write(command);
+            view.write(password);
+            view.write(passwordToAdd);
+            resetStdin();
             processCommand(command, password, passwordToAdd);
           } else {
             view.write("Passwords don't match.");
           }
-        });
+        };
         view.write('Again to confirm:');
-      });
+      };
       view.write('Enter password to add:');
     } else {
       processCommand(command, password);
     }
-  });
+  };
   view.write('Enter encryption password:');
+  enterPassword();
 };
 
 usage = function usage() {
@@ -258,7 +277,7 @@ usage = function usage() {
     '     otherwise it displays all matches',
     '   delete will only remove a password where the site matches exactly',
     ''
-  ].join("\n"));
+  ].join('\n'));
 };
 
 start();
