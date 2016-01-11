@@ -1,0 +1,52 @@
+#!/bin/env bash
+
+# rip_movie
+# Rips first title that is 60 minutes or longer, removes non-english audio tracks
+#   unless the main track (e.g. Chinese movies) or tracks that are mono or stereo
+#   when a multichannel track exists, selects 3D tracks and English subtitles
+#
+# Renames the ripped title, moves it to appropriate folder and sets permissions
+#   for Plex
+
+
+# Default selection added in MakeMKV GUI
+# Preferences->General, tick Expert Mode, Advanced->Default selection rule:
+#   -sel:all,+sel:audio&(eng|core|havecore),-sel:(havemulti),+sel:mvcvideo,+sel:subtitle&(eng),-sel:special,=100:all,-10:eng
+#
+
+
+name="$1"; shift
+year=$1; shift
+title=$1; shift
+location=$1; shift
+
+if [[ $name == '' || $year == '' ]]; then
+  echo "rip_movie <name> <year> [Owned | Rentals] [title number, default: '0']"
+  exit 1
+fi
+
+
+[[ $title ]] || title=0
+destination=/media
+minlength=3600
+[[ $year == 'tv' ]] && season_number=$title && title=all && minlength=1800
+
+makemkvcon --minlength=$minlength mkv disc:0 $title $destination
+
+if [[ $? == 0 ]]; then
+#  if [[ $season_number ]]; then
+    # check existing episodes in season folder and increment to next one
+    # or start from '01'
+
+#  else
+    filename="$name (${year}).mkv"
+    mv *.mkv "$filename"
+    move_to_plex "$filename" "$location"
+#  fi
+  eject
+else
+  echo MAKEMKV FAILED: Problem ripping disc
+  echo Removing partially created files...
+  rm $destination/*.mkv
+fi
+

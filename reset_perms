@@ -1,0 +1,10 @@
+#!/bin/env bash
+
+if [[ $1 == '' || $2 == '' ]]; then
+  echo 'reset_perms <folder> <user>'
+else
+  sudo find $1 -type d -exec chmod 755 {} \;
+  sudo find $1 -type f -exec chmod 644 {} \;
+  sudo chown -R $2:$2 $1
+fi
+

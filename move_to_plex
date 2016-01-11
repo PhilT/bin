@@ -1,0 +1,15 @@
+#!/bin/env bash
+
+# move_to_plex <file> [Owned (default) | Rentals]
+
+file="$1"
+location="$2"
+type=Movies
+
+if [[ $location == '' ]]; then
+  location=Owned
+fi
+
+sudo chown plex:plex "$file"
+sudo mv "$file" /media/$location/$type
+
