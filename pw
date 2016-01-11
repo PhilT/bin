@@ -237,9 +237,6 @@ start = function start() {
       passwordCallback = function (passwordToAdd) {
         passwordCallback = function (passwordConfirmation) {
           if (passwordToAdd === passwordConfirmation) {
-            view.write(command);
-            view.write(password);
-            view.write(passwordToAdd);
             resetStdin();
             processCommand(command, password, passwordToAdd);
           } else {

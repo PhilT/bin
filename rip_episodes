@@ -1,9 +1,0 @@
-#!/bin/env bash
-
-# rip_tv
-# Rips all titles 30 minutes or longer, removes non-english audio tracks
-# Renames and adds to existing season incrementing episode numbers when
-# adding to library.
-
-rip_movie $name tv $season_number $location
-

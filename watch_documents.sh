@@ -7,5 +7,6 @@ while(true)
 do
   inotifywait -r --exclude "\.git" $DOCUMENTS
   sleep $TIMEOUT
-  cd $DOCUMENTS && git add -A && git commit -m 'autocommitted by ~/bin/watch_git.sh' && git push
+  cd $DOCUMENTS && git add -A && git commit -m 'autocommitted by ~/bin/watch_documents.sh' && git push
 done
+
