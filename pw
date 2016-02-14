@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-'use strict';
+'use strict'
 
 // pw
 //
@@ -12,6 +12,7 @@
 // Only dependency is node (No node modules are required).
 //
 // Find pw and other useful scripts at https://github.com/PhilT/bin
+// version 0.11- Rewrite for ES6 and streams - remove
 // version 0.10- Fix add
 //
 // version 0.9 - Fix compatibility issues with GPG2
@@ -47,10 +48,10 @@ var path = require('path'),
     flow = require('./lib/pw/flow'),
     attemptExit = require('./lib/pw/flow').attemptExit,
     wantToExit = require('./lib/pw/flow').wantToExit,
-    commands = require('./lib/pw/commands');
+    commands = require('./lib/pw/commands')
 
 var homePath = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE,
-    params = {args: [], force: false};
+    params = {args: [], force: false}
 
 var enterPassword,
     passwordCallback,
@@ -65,46 +66,46 @@ var enterPassword,
     processCommand,
     savePasswordFile,
     start,
-    usage;
+    usage
 
 process.on('SIGINT', function () {
-  throw 'User aborted.';
-});
+  throw 'User aborted.'
+})
 
 enterPassword = function enterPassword() {
   var password = '',
-      stdin = process.stdin;
-  var ch;
+      stdin = process.stdin
+  var ch
 
-  stdin.setEncoding('utf8');
-  stdin.setRawMode(true);
+  stdin.setEncoding('utf8')
+  stdin.setRawMode(true)
   stdin.on('readable', function () {
-    ch = stdin.read();
+    ch = stdin.read()
     if (ch === '\r') {
-      passwordCallback(password);
-      password = '';
+      passwordCallback(password)
+      password = ''
     } else if (ch === '\u0003') {
-      view.write();
-      throw 'User aborted';
+      view.write()
+      throw 'User aborted'
     } else if (ch !== null) {
-      password += ch;
+      password += ch
     }
-  });
-};
+  })
+}
 
 resetStdin = function resetStdin() {
-  process.stdin.setRawMode(false);
-  process.stdin.setEncoding();
-};
+  process.stdin.setRawMode(false)
+  process.stdin.setEncoding()
+}
 
 extractOptions = function extractOptions() {
-  var index = params.args.indexOf('--force');
+  var index = params.args.indexOf('--force')
 
   if (index > -1) {
-    params.args.splice(index, 1);
-    params.force = true;
+    params.args.splice(index, 1)
+    params.force = true
   }
-};
+}
 
 gpg = function gpg(password, encrypt, input, done, to) {
   var options = {},
@@ -122,137 +123,137 @@ gpg = function gpg(password, encrypt, input, done, to) {
         path.join(homePath, '.gnupg')
       ],
       child,
-      passwords = '';
+      passwords = ''
 
   if (encrypt) {
-    args.push('--symmetric');
+    args.push('--symmetric')
   } else {
-    args.push('--decrypt');
+    args.push('--decrypt')
   }
-  child = spawn('gpg', args, options);
+  child = spawn('gpg', args, options)
   child.on('exit', function () {
-    done(passwords);
-  });
+    done(passwords)
+  })
   if (to) {
-    child.stdout.pipe(to);
+    child.stdout.pipe(to)
   } else {
     child.stdout.on('data', function (data) {
-      passwords += data;
-    });
+      passwords += data
+    })
   }
   child.stderr.on('data', function (data) {
-    view.write(data.toString());
-    throw 'Error reading data';
-  });
+    view.write(data.toString())
+    throw 'Error reading data'
+  })
 
-  child.stdin.end(input);
-};
+  child.stdin.end(input)
+}
 
 loadConfig = function loadConfig(pathname) {
-  var config = loadJson(pathname);
+  var config = loadJson(pathname)
 
-  config.passwordLength = config.passwordLength || 15;
+  config.passwordLength = config.passwordLength || 15
 
   if (!config.dir || !config.file) {
-    view.write(pathname + ' must exist with, for example:');
-    view.write('{"dir": "path/to/password/file", "file": ".password.csv"}');
-    throw 'No config file';
+    view.write(pathname + ' must exist with, for example:')
+    view.write('{"dir": "path/to/password/file", "file": ".password.csv"}')
+    throw 'No config file'
   }
-  return config;
-};
+  return config
+}
 
 loadFile = function loadFile(pathname, encoding) {
-  var contents;
+  var contents
 
   try {
-    contents = fs.readFileSync(pathname, encoding);
+    contents = fs.readFileSync(pathname, encoding)
   } catch (e) {
-    throw 'Could not load file: ' + pathname;
+    throw 'Could not load file: ' + pathname
   }
-  return contents;
-};
+  return contents
+}
 
 loadJson = function loadJson(pathname) {
-  return JSON.parse(loadFile(pathname, 'utf8')) || {};
-};
+  return JSON.parse(loadFile(pathname, 'utf8')) || {}
+}
 
 loadPasswordFile = function loadPasswordFile(pathname, password, callback) {
-  var encryptedPasswords = loadFile(pathname);
+  var encryptedPasswords = loadFile(pathname)
 
-  if (!encryptedPasswords) { throw new Error('Could not load file'); }
+  if (!encryptedPasswords) { throw new Error('Could not load file') }
   gpg(password, false, encryptedPasswords, function (passwords) {
-    callback(passwords);
-  });
-};
+    callback(passwords)
+  })
+}
 
 parseArgs = function parseArgs() {
   var command,
       commandList = ['add', 'remove', 'generate', 'query'],
-      index;
+      index
 
-  params.args = process.argv.slice(2);
-  extractOptions(params);
-  command = params.args.shift();
+  params.args = process.argv.slice(2)
+  extractOptions(params)
+  command = params.args.shift()
 
-  commandList = commandList.concat(commandList.map(function (c) { return c[0]; }));
-  index = commandList.indexOf(command);
+  commandList = commandList.concat(commandList.map(function (c) { return c[0] }))
+  index = commandList.indexOf(command)
 
   if (index === -1) {
-    usage();
-    throw 'Unknown command';
+    usage()
+    throw 'Unknown command'
   }
 
-  return commandList[index % (commandList.length / 2)];
-};
+  return commandList[index % (commandList.length / 2)]
+}
 
 processCommand = function processCommand(command, password, passwordToAdd) {
   var pwconfigPath = path.join(homePath, '.pwconfig.json'),
       pwconfig = loadConfig(pwconfigPath),
-      passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg';
+      passwordFile = path.join(pwconfig.dir, pwconfig.file) + '.gpg'
 
   loadPasswordFile(passwordFile, password, function (passwords) {
-    var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd);
+    var newPasswords = commands[command](passwords, params, pwconfig, passwordToAdd)
 
-    flow.wantToExit();
+    flow.wantToExit()
     if (newPasswords !== passwords && newPasswords && newPasswords !== '') {
-      savePasswordFile(passwordFile, password, newPasswords);
+      savePasswordFile(passwordFile, password, newPasswords)
     }
-    flow.attemptExit();
-  });
-};
+    flow.attemptExit()
+  })
+}
 
 savePasswordFile = function savePasswordFile(filepath, password, passwords) {
-  wantToExit();
+  wantToExit()
   gpg(password, true, passwords, function () {
-    view.write('Password file updated.');
-    attemptExit();
-  }, fs.createWriteStream(filepath));
-};
+    view.write('Password file updated.')
+    attemptExit()
+  }, fs.createWriteStream(filepath))
+}
 
 start = function start() {
-  var command = parseArgs();
+  var command = parseArgs()
 
   passwordCallback = function (password) {
     if (command === 'add') {
       passwordCallback = function (passwordToAdd) {
         passwordCallback = function (passwordConfirmation) {
           if (passwordToAdd === passwordConfirmation) {
-            resetStdin();
-            processCommand(command, password, passwordToAdd);
+            resetStdin()
+            processCommand(command, password, passwordToAdd)
           } else {
-            view.write("Passwords don't match.");
+            view.write("Passwords don't match.")
           }
-        };
-        view.write('Again to confirm:');
-      };
-      view.write('Enter password to add:');
+        }
+        view.write('Again to confirm:')
+      }
+      view.write('Enter password to add:')
     } else {
-      processCommand(command, password);
+      processCommand(command, password)
     }
-  };
-  view.write('Enter encryption password:');
-  enterPassword();
-};
+  }
+  view.write('Enter encryption password:')
+  enterPassword()
+}
 
 usage = function usage() {
   view.write([
@@ -274,8 +275,7 @@ usage = function usage() {
     '     otherwise it displays all matches',
     '   delete will only remove a password where the site matches exactly',
     ''
-  ].join('\n'));
-};
+  ].join('\n'))
+}
 
-start();
-
+start()
